@@ -1,0 +1,6 @@
+Update_Latest_Denom_Job:
+  cron: "0 20 * * *"
+  class: "UpdateLatestDenomJob
+  queue: 'high_priority'
+  priority: 10
+  description: 'Run Update_Latest_Denom_Job daily at 4 AM Malaysia time'

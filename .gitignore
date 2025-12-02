@@ -33,3 +33,28 @@
 
 # Ignore master key for decrypting credentials and more.
 /config/master.key
+
+# Ignore database dumps
+*.dump
+*.sql
+
+# Ignore node_modules if using any JS tools
+/node_modules
+
+# Ignore IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Ignore macOS files
+.DS_Store
+
+# Ignore coverage reports
+/coverage/
+
+# Ignore secrets and keys
+*.pem
+*.key
+secrets.yml
