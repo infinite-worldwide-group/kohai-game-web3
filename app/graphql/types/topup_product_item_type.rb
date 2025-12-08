@@ -8,6 +8,7 @@ module Types
     field :origin_id, String, null: true
     field :name, String, null: true
     field :price, Float, null: true
+    field :currency, String, null: false
     field :icon, String, null: true
     field :active, Boolean, null: false
     field :topup_product_id, ID, null: false
@@ -17,6 +18,7 @@ module Types
     # Helper methods
     field :display_name, String, null: false
     field :formatted_price, String, null: false
+    field :price_in_usdt, Float, null: true
 
     def display_name
       object.display_name
@@ -24,6 +26,21 @@ module Types
 
     def formatted_price
       object.formatted_price
+    end
+
+    def price_in_usdt
+      return nil unless object.price
+
+      if object.currency == 'MYR'
+        CurrencyConversionService.myr_to_usdt(object.price)
+      else
+        # Assume USD/USDT if not MYR
+        object.price
+      end
+    end
+
+    def currency
+      object.currency || 'MYR'
     end
   end
 end

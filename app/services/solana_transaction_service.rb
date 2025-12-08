@@ -103,14 +103,34 @@ class SolanaTransactionService
       # Parse full transaction details if available
       details = parse_transaction_details(transaction_info)
 
-      # Validate sender (if provided)
-      if expected_sender.present? && details[:from_address] != expected_sender
-        raise InvalidTransaction, "Transaction sender #{details[:from_address]} does not match expected #{expected_sender}"
+      Rails.logger.info "Transaction details extracted:"
+      Rails.logger.info "  From: #{details[:from_address]}"
+      Rails.logger.info "  To: #{details[:to_address]}"
+      Rails.logger.info "  Is SPL Token: #{details[:is_spl_token]}"
+
+      # Validate sender (if provided) - strip whitespace and compare
+      if expected_sender.present?
+        actual_sender = details[:from_address]&.strip
+        expected_sender_clean = expected_sender.strip
+        
+        if actual_sender != expected_sender_clean
+          Rails.logger.error "Sender mismatch:"
+          Rails.logger.error "  Expected: '#{expected_sender_clean}' (length: #{expected_sender_clean.length})"
+          Rails.logger.error "  Actual: '#{actual_sender}' (length: #{actual_sender&.length || 0})"
+          Rails.logger.error "  Match: #{actual_sender == expected_sender_clean}"
+          raise InvalidTransaction, "Transaction sender #{actual_sender} does not match expected #{expected_sender_clean}"
+        end
       end
 
-      # Validate receiver
-      if details[:to_address] != expected_receiver
-        raise InvalidTransaction, "Transaction receiver #{details[:to_address]} does not match expected #{expected_receiver}"
+      # Validate receiver - strip whitespace and compare
+      actual_receiver = details[:to_address]&.strip
+      expected_receiver_clean = expected_receiver.strip
+      
+      if actual_receiver != expected_receiver_clean
+        Rails.logger.error "Receiver mismatch:"
+        Rails.logger.error "  Expected: '#{expected_receiver_clean}'"
+        Rails.logger.error "  Actual: '#{actual_receiver}'"
+        raise InvalidTransaction, "Transaction receiver #{actual_receiver} does not match expected #{expected_receiver_clean}"
       end
 
       # Validate amount - allow if paid amount is >= expected (user can overpay)
@@ -239,18 +259,104 @@ class SolanaTransactionService
     meta = result['meta']
     transaction = result['transaction']
 
-    # Extract transfer details from parsed instructions
-    transfer_instruction = find_transfer_instruction(transaction)
+    # Try to find SPL token transfer first, then fall back to SOL transfer
+    spl_instruction = find_spl_token_transfer_instruction(transaction)
+    sol_instruction = find_transfer_instruction(transaction)
+    
+    # Use whichever instruction was found
+    transfer_instruction = spl_instruction || sol_instruction
+    
+    if spl_instruction
+      # For SPL token transfers (USDT, USDC, etc.)
+      # The 'authority' field is the sender for SPL tokens
+      from_address = spl_instruction.dig('parsed', 'info', 'authority')
+      
+      # For SPL tokens, 'destination' is the token account, not wallet
+      # We need to get the token account owner from postTokenBalances
+      destination_token_account = spl_instruction.dig('parsed', 'info', 'destination')
+      
+      # Get account keys to map token account to index
+      account_keys = transaction.dig('message', 'accountKeys') || []
+      
+      # Find the owner of the destination token account from postTokenBalances
+      to_address = find_token_account_owner(meta, destination_token_account, account_keys)
+      
+      Rails.logger.info "SPL Token Transfer Details:"
+      Rails.logger.info "  Authority (sender wallet): #{from_address}"
+      Rails.logger.info "  Destination token account: #{destination_token_account}"
+      Rails.logger.info "  Destination owner (wallet): #{to_address}"
+      
+      amount = spl_instruction.dig('parsed', 'info', 'tokenAmount', 'uiAmount') || 
+               spl_instruction.dig('parsed', 'info', 'amount')
+    else
+      # For SOL transfers
+      from_address = transfer_instruction&.dig('parsed', 'info', 'source')
+      to_address = transfer_instruction&.dig('parsed', 'info', 'destination')
+      amount = transfer_instruction&.dig('parsed', 'info', 'lamports') || 0
+    end
 
     {
-      from_address: transfer_instruction&.dig('parsed', 'info', 'source'),
-      to_address: transfer_instruction&.dig('parsed', 'info', 'destination'),
-      amount_lamports: transfer_instruction&.dig('parsed', 'info', 'lamports') || 0,
+      from_address: from_address,
+      to_address: to_address,
+      amount_lamports: amount,
       block_timestamp: result['blockTime'],
       block_number: result['slot'],
       fee: meta['fee'],
-      error: meta['err']
+      error: meta['err'],
+      is_spl_token: spl_instruction.present?
     }
+  end
+
+  # Find the owner of a token account from transaction metadata
+  def self.find_token_account_owner(meta, token_account_address, account_keys)
+    # Check postTokenBalances for the token account
+    post_balances = meta['postTokenBalances'] || []
+    
+    Rails.logger.info "Looking for token account owner: #{token_account_address}"
+    Rails.logger.info "Account keys count: #{account_keys.length}"
+    Rails.logger.info "PostTokenBalances count: #{post_balances.length}"
+    
+    # Find the index of the destination token account in accountKeys
+    token_account_index = account_keys.find_index do |key|
+      key_address = key.is_a?(Hash) ? key['pubkey'] : key
+      key_address == token_account_address
+    end
+    
+    if token_account_index
+      Rails.logger.info "Token account index: #{token_account_index}"
+      
+      # Find the balance entry for this account index
+      token_balance = post_balances.find { |balance| balance['accountIndex'] == token_account_index }
+      
+      if token_balance && token_balance['owner']
+        owner = token_balance['owner']
+        Rails.logger.info "Found token account owner: #{owner}"
+        return owner
+      end
+    end
+    
+    # Fallback: get the last postTokenBalance owner (usually the receiver)
+    last_balance = post_balances.last
+    if last_balance && last_balance['owner']
+      Rails.logger.info "Using fallback: last postTokenBalance owner: #{last_balance['owner']}"
+      return last_balance['owner']
+    end
+    
+    Rails.logger.warn "Could not find owner for token account #{token_account_address}, using account address as fallback"
+    token_account_address
+  end
+
+  # Find SPL token transfer instruction in transaction
+  def self.find_spl_token_transfer_instruction(transaction)
+    instructions = transaction.dig('message', 'instructions') || []
+
+    instructions.find do |instruction|
+      program = instruction['program']
+      type = instruction.dig('parsed', 'type')
+      
+      # Look for spl-token program transfers
+      (program == 'spl-token' && (type == 'transfer' || type == 'transferChecked'))
+    end
   end
 
   # Find SOL transfer instruction in transaction

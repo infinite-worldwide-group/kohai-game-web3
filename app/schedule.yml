@@ -1,6 +1,13 @@
 Update_Latest_Denom_Job:
   cron: "0 20 * * *"
-  class: "UpdateLatestDenomJob
+  class: "UpdateLatestDenomJob"
   queue: 'high_priority'
   priority: 10
   description: 'Run Update_Latest_Denom_Job daily at 4 AM Malaysia time'
+
+Update_Currency_Rates_Job:
+  cron: "0 */4 * * *"
+  class: "UpdateCurrencyRatesJob"
+  queue: 'default'
+  priority: 5
+  description: 'Update currency exchange rates every 4 hours'

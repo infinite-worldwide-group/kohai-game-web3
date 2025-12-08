@@ -18,7 +18,7 @@ class SolanaTransactionBuilderService
   # @return [Hash] Transaction result
   def self.send_sol_with_memo(to_address:, amount_sol:, memo:, keypair_path: nil)
     keypair_path ||= ENV.fetch('PLATFORM_KEYPAIR_PATH', './platform-keypair.json')
-    rpc_url = ENV.fetch('SOLANA_RPC_URL', 'http://127.0.0.1:8899')
+    rpc_url = ENV.fetch('SOLANA_RPC_URL', 'https://api.mainnet-beta.solana.com')
 
     Rails.logger.info "[SolanaTransactionBuilder] Sending #{amount_sol} SOL to #{to_address} with memo: #{memo}"
 
@@ -94,7 +94,7 @@ class SolanaTransactionBuilderService
   # This builds and sends transaction using pure RPC calls
   # Note: Requires ed25519 signing capability
   def self.send_transaction_via_rpc(to_address:, amount_sol:, memo:, private_key:)
-    rpc_url = ENV.fetch('SOLANA_RPC_URL', 'http://127.0.0.1:8899')
+    rpc_url = ENV.fetch('SOLANA_RPC_URL', 'https://api.mainnet-beta.solana.com')
 
     # This is a placeholder - actual implementation requires:
     # 1. Building the transaction message
@@ -112,7 +112,7 @@ class SolanaTransactionBuilderService
   # @param signature [String] Transaction signature
   # @return [Hash] Transaction details
   def self.verify_transaction(signature)
-    rpc_url = ENV.fetch('SOLANA_RPC_URL', 'http://127.0.0.1:8899')
+    rpc_url = ENV.fetch('SOLANA_RPC_URL', 'https://api.mainnet-beta.solana.com')
 
     uri = URI(rpc_url)
     http = Net::HTTP.new(uri.host, uri.port)
@@ -162,7 +162,7 @@ class SolanaTransactionBuilderService
   # @param wallet_address [String] Wallet address
   # @return [Float] Balance in SOL
   def self.get_balance(wallet_address)
-    rpc_url = ENV.fetch('SOLANA_RPC_URL', 'http://127.0.0.1:8899')
+    rpc_url = ENV.fetch('SOLANA_RPC_URL', 'https://api.mainnet-beta.solana.com')
 
     uri = URI(rpc_url)
     http = Net::HTTP.new(uri.host, uri.port)
@@ -197,7 +197,7 @@ class SolanaTransactionBuilderService
   end
 
   def self.fetch_recent_blockhash
-    rpc_url = ENV.fetch('SOLANA_RPC_URL', 'http://127.0.0.1:8899')
+    rpc_url = ENV.fetch('SOLANA_RPC_URL', 'https://api.mainnet-beta.solana.com')
 
     uri = URI(rpc_url)
     http = Net::HTTP.new(uri.host, uri.port)

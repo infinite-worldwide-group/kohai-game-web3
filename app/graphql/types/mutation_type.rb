@@ -13,6 +13,7 @@ module Types
 
     # Order mutations
     field :create_order, mutation: Mutations::Orders::CreateOrder
+    field :confirm_payment, mutation: Mutations::Orders::ConfirmPayment
 
     # Purchase mutations
     field :purchase_game_credit, mutation: Mutations::User::Topups::PurchaseGameCredit

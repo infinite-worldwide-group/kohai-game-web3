@@ -27,8 +27,11 @@ module VendorService
     path = '/merchant-products'              # vendor products endpoint
     signature = OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'), secret_key, merchant_id + path)
 
+    # include pagination query params by default
     body = {
-      signature: signature
+      signature: signature,
+      page: 1,
+      per_page: 100
     }
 
     get(ENV['VENDOR_URL'], path, body)
@@ -79,18 +82,37 @@ module VendorService
     post(ENV['VENDOR_URL'], path, body)
   end
 
-  def create_order(product_id:, product_item_id:, user_input:, partner_order_id:, callback_url:)
+  def create_order(product_id:, product_item_id:, user_input:, partner_order_id:, callback_url:, price_usdt: nil)
     secret_key = ENV['VENDOR_SECRET_KEY'].to_s
     merchant_id = ENV['VENDOR_MERCHANT_ID'].to_s
     path = "/merchant-products/#{product_id}/items"
     payload = merchant_id + path + product_id
     signature = OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'), secret_key, payload)
-    topup_product_item = TopupProductItem.find_by(origin_id: product_item_id)
+
+    # Determine price to send to vendor
+    # If price_usdt is provided (from order), use that
+    # Otherwise, look up the item and convert its price to USDT
+    final_price = if price_usdt.present?
+      price_usdt
+    else
+      topup_product_item = TopupProductItem.find_by(origin_id: product_item_id)
+      if topup_product_item.present?
+        # Convert price from item's currency to USDT
+        CurrencyConversionService.convert(
+          topup_product_item.price,
+          from_currency: topup_product_item.currency || 'MYR',
+          to_currency: 'USDT'
+        )
+      else
+        0
+      end
+    end
+
     body = {
       productId: product_id,
       productItemId: product_item_id,
       data: user_input,
-      price: topup_product_item&.price,
+      price: final_price,
       reference: partner_order_id,
       callbackUrl: callback_url
     }

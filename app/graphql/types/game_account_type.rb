@@ -19,9 +19,14 @@ module Types
 
     field :topup_product, Types::TopupProductType, null: true
     field :display_name, String, null: false
+    field :last_purchase_at, GraphQL::Types::ISO8601DateTime, null: true
 
     def display_name
       object.display_name
+    end
+
+    def last_purchase_at
+      object.orders.maximum(:created_at)
     end
   end
 end

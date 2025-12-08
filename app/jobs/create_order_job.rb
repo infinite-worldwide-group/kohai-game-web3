@@ -83,28 +83,39 @@ class CreateOrderJob < ApplicationJob
         # Verify the transaction details match expectations
         tx_details = SolanaApi.get_transaction(tx_signature)
         if tx_details && tx_details["result"]
-          # Parse sender and receiver from transaction
-          instructions = tx_details.dig("result", "transaction", "message", "instructions") || []
-          transfer = instructions.find { |i| i.dig("parsed", "type") == "transfer" }
-
-          if transfer
-            tx_sender = transfer.dig("parsed", "info", "source")
-            tx_receiver = transfer.dig("parsed", "info", "destination")
-
-            # Validate sender matches user's wallet
-            unless tx_sender == user_wallet
-              Rails.logger.error "Transaction sender #{tx_sender} does not match user wallet #{user_wallet}"
-              return handle_payment_failure(order, "Transaction sender does not match your wallet address")
-            end
-
-            # Validate receiver matches platform wallet
-            unless tx_receiver == platform_wallet
-              Rails.logger.error "Transaction receiver #{tx_receiver} does not match platform wallet #{platform_wallet}"
-              return handle_payment_failure(order, "Transaction was not sent to the platform wallet")
-            end
-
-            Rails.logger.info "Transaction verified: #{tx_sender} -> #{tx_receiver}"
+          # Use SolanaTransactionService to parse transaction details
+          details = SolanaTransactionService.parse_transaction_details(tx_details)
+          
+          tx_sender = details[:from_address]
+          tx_receiver = details[:to_address]
+          actual_amount = BigDecimal(details[:amount_lamports].to_s)
+          
+          if details[:is_spl_token]
+            # Amount is already in UI format (e.g., 0.045 USDT)
+            Rails.logger.info "SPL Token Transfer: #{actual_amount} (from blockchain)"
+          else
+            # Convert lamports to SOL
+            actual_amount = actual_amount / BigDecimal('1000000000')
+            Rails.logger.info "SOL Transfer: #{actual_amount} SOL (from blockchain)"
           end
+
+          # Validate sender matches user's wallet
+          unless tx_sender&.strip == user_wallet&.strip
+            Rails.logger.error "Transaction sender #{tx_sender} does not match user wallet #{user_wallet}"
+            return handle_payment_failure(order, "Transaction sender does not match your wallet address")
+          end
+
+          # Validate receiver matches platform wallet
+          unless tx_receiver&.strip == platform_wallet&.strip
+            Rails.logger.error "Transaction receiver #{tx_receiver} does not match platform wallet #{platform_wallet}"
+            return handle_payment_failure(order, "Transaction was not sent to the platform wallet")
+          end
+            
+            # UPDATE ORDER WITH ACTUAL AMOUNT FROM BLOCKCHAIN
+          order.update!(crypto_amount: actual_amount)
+          Rails.logger.info "Updated order crypto_amount to actual blockchain amount: #{actual_amount}"
+
+          Rails.logger.info "Transaction verified: #{tx_sender} -> #{tx_receiver}, Amount: #{actual_amount}"
         end
 
         break
@@ -117,13 +128,19 @@ class CreateOrderJob < ApplicationJob
     end
 
     if transaction
+      # Get the actual amount from the order (which was just updated with blockchain amount)
+      actual_crypto_amount = order.reload.crypto_amount
+      
       # Transaction found, verified, and confirmed
       crypto_tx.update!(
         state: "confirmed",
+        amount: actual_crypto_amount,  # Update with actual blockchain amount
         confirmations: 1,
-        block_timestamp: Time.at(transaction["blockTime"]) if transaction["blockTime"],
+        block_timestamp: transaction["blockTime"] ? Time.at(transaction["blockTime"]) : nil,
         metadata: transaction.to_json
       )
+      
+      Rails.logger.info "CryptoTransaction updated with actual amount: #{actual_crypto_amount}"
 
       # Process the order (this will trigger the purchase_game_credit callback)
       order.process!

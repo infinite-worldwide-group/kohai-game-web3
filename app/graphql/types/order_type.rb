@@ -12,6 +12,7 @@ module Types
 
     # Crypto amounts (actual payment)
     field :crypto_amount, Float, null: true, description: "Amount paid in cryptocurrency"
+    field :crypto_amount_string, String, null: true, description: "Amount paid in cryptocurrency (formatted string)"
     field :crypto_currency, String, null: true, description: "Cryptocurrency used (SOL, USDT, etc.)"
 
     # Discount/VIP info
@@ -29,6 +30,19 @@ module Types
 
     field :user, Types::UserType, null: false
     field :crypto_transaction, Types::CryptoTransactionType, null: true
+
+    # Custom resolver to format crypto_amount properly without scientific notation
+    def crypto_amount
+      return nil unless object.crypto_amount
+      # Convert to float but ensure proper formatting
+      object.crypto_amount.to_f
+    end
+
+    def crypto_amount_string
+      return nil unless object.crypto_amount
+      # Return as properly formatted decimal string (no scientific notation)
+      object.crypto_amount.to_s('F')
+    end
 
     def user
       object.user

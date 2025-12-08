@@ -16,9 +16,13 @@ class GameAccount < ApplicationRecord
   scope :by_game, ->(game_id) { where(game_id: game_id) }
   scope :by_product, ->(product_id) { where(topup_product_id: product_id) }
   scope :recent, -> { order(created_at: :desc) }
-
-  # Default scope to only show active accounts
-  default_scope { where(status: 'active') }
+  scope :with_purchases, -> { joins(:orders).distinct }
+  scope :by_recent_purchase, -> {
+    joins(:orders)
+      .select('game_accounts.*, MAX(orders.created_at) as last_purchase_at')
+      .group('game_accounts.id')
+      .order('last_purchase_at DESC')
+  }
 
   # Instance methods
   def approved?

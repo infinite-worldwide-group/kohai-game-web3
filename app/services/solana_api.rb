@@ -43,7 +43,7 @@ module SolanaApi
       method: "getTransaction",
       params: [
         signature,
-        { encoding: "json", maxSupportedTransactionVersion: 0 }
+        { encoding: "jsonParsed", maxSupportedTransactionVersion: 0 }
       ]
     }
 
@@ -55,7 +55,7 @@ module SolanaApi
   private
 
   def rpc_url
-    ENV.fetch("SOLANA_RPC_URL", "https://api.devnet.solana.com")
+    ENV.fetch("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
   end
 
   def get(url, path, body)

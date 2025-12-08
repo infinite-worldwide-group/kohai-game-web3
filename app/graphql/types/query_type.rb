@@ -22,5 +22,9 @@ module Types
 
     # Game account queries
     field :my_game_accounts, resolver: Queries::GameAccounts::MyGameAccounts
+
+    # Currency queries
+    field :supported_currencies, resolver: Queries::Currencies::SupportedCurrencies
+    field :convert_currency, resolver: Queries::Currencies::ConvertCurrency
   end
 end
