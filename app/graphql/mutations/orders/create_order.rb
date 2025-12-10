@@ -53,32 +53,58 @@ module Mutations
           end
         end
 
-        # Convert product price from MYR to USDT using BigDecimal for precision
-        price_in_usdt = if product_item.currency == 'MYR'
-          BigDecimal(CurrencyConversionService.myr_to_usdt(product_item.price).to_s)
-        else
-          BigDecimal(product_item.price.to_s)
-        end
-
-        # Calculate tier discount (in USDT) - ensure BigDecimal precision
-        pricing = TierService.calculate_discounted_price(price_in_usdt.to_f, current_user)
-        final_amount_usdt = BigDecimal(pricing[:final_price].to_s)  # Price in USDT after discount
-        original_amount_usdt = BigDecimal(pricing[:original_price].to_s)  # Original price in USDT
-        discount_amount = BigDecimal(pricing[:discount_amount].to_s)
-        discount_percent = pricing[:discount_percent]
-        tier_info = pricing[:tier_info]
-
-        # Use crypto_amount from frontend, or fallback to final_amount_usdt
-        # Ensure it's converted to BigDecimal to preserve precision
+        # Use product item's original price and currency for amount/original_amount
+        # These fields record the product price in its original currency (e.g., MYR)
+        final_amount = BigDecimal(product_item.price.to_s)
+        original_amount = BigDecimal(product_item.price.to_s)
+        order_currency = product_item.currency || 'USDT'
+        
+        # Use crypto_amount from frontend for the actual crypto payment
+        # Frontend has already calculated the correct crypto amount with exchange rates and discounts
         final_crypto_amount = if crypto_amount.present?
           BigDecimal(crypto_amount.to_s)
         else
-          final_amount_usdt
+          # Fallback: convert product price to USDT if crypto_amount not provided
+          if product_item.currency == 'MYR'
+            BigDecimal(CurrencyConversionService.myr_to_usdt(product_item.price).to_s)
+          else
+            BigDecimal(product_item.price.to_s)
+          end
         end
         crypto_token = crypto_currency.upcase
 
+        # Get user's tier status with real-time blockchain check
+        tier_status = TierService.check_tier_status(current_user, force_refresh: true)
+
+        # Calculate discounted price using TierService
+        discount_calculation = TierService.calculate_discounted_price(
+          final_amount.to_f,
+          current_user,
+          force_refresh: true
+        )
+
+        # Extract discount information
+        discount_amount = BigDecimal(discount_calculation[:discount_amount].to_s)
+        discount_percent = discount_calculation[:discount_percent]
+        tier_info = discount_calculation[:tier_info]
+
+        # Apply discount to final_amount (MYR price)
+        final_amount = BigDecimal(discount_calculation[:final_price].to_s)
+
+        # Recalculate crypto_amount from discounted MYR price if not provided by frontend
+        if crypto_amount.blank?
+          if product_item.currency == 'MYR'
+            final_crypto_amount = BigDecimal(
+              CurrencyConversionService.myr_to_usdt(final_amount).to_s
+            )
+          else
+            final_crypto_amount = final_amount
+          end
+        end
+
         # Log amounts for debugging
-        Rails.logger.info "Order amounts - Original: #{original_amount_usdt}, Final: #{final_amount_usdt}, Crypto: #{final_crypto_amount} #{crypto_token}"
+        Rails.logger.info "VIP_DISCOUNT tier=#{tier_info[:tier_name]} discount=#{discount_percent}% original=#{original_amount} final=#{final_amount}"
+        Rails.logger.info "Order amounts - Original: #{original_amount} #{order_currency}, Product: #{final_amount} #{order_currency}, Crypto: #{final_crypto_amount} #{crypto_token}"
 
         # Get platform wallet address
         platform_wallet = ENV.fetch('PLATFORM_WALLET_ADDRESS')
@@ -93,11 +119,11 @@ module Mutations
             user: current_user,
             topup_product_item: product_item,
             game_account: game_account,
-            # Fiat amounts (for display/accounting) - all in USDT
-            amount: final_amount_usdt,
-            original_amount: original_amount_usdt,
-            currency: 'USDT', # Store as USDT (converted from MYR)
-            # Crypto amounts (actual payment from blockchain)
+            # Product price in original currency (e.g., 0.04 MYR)
+            amount: final_amount,
+            original_amount: original_amount,
+            currency: order_currency, # Original currency (e.g., 'MYR')
+            # Crypto amounts (actual payment from blockchain, e.g., 0.008511 USDT)
             crypto_amount: final_crypto_amount,
             crypto_currency: crypto_token,
             # Discount info

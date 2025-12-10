@@ -43,9 +43,10 @@ module TierService
   # Calculate discounted price for an order
   # @param original_price [Float] Original price before discount
   # @param user [User] The user making the purchase
+  # @param force_refresh [Boolean] Force refresh from blockchain (default: false)
   # @return [Hash] { original_price:, discount_percent:, discount_amount:, final_price:, tier_info: }
-  def calculate_discounted_price(original_price, user)
-    tier_info = check_tier_status(user)
+  def calculate_discounted_price(original_price, user, force_refresh: false)
+    tier_info = check_tier_status(user, force_refresh: force_refresh)
     discount_percent = tier_info[:discount_percent]
 
     discount_amount = (original_price * discount_percent / 100.0).round(6)

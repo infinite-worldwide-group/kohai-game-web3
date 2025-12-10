@@ -8,6 +8,7 @@ module Types
 
     # User queries
     field :current_user, resolver: Queries::Users::CurrentUser
+    field :tier_status, resolver: Queries::Users::TierStatus
 
     # Order queries
     field :order, resolver: Queries::Orders::Order
