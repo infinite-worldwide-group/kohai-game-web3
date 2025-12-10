@@ -16,11 +16,12 @@ class SolanaTransactionService
   # Verify a transaction on Solana blockchain using wallet history
   # This is more reliable for recent transactions than getTransaction
   # @param signature [String] Transaction signature
-  # @param expected_amount [Decimal] Expected amount in SOL
+  # @param expected_amount [Decimal] Expected amount (in token's base unit, e.g., USDT, SOL)
   # @param expected_receiver [String] Expected receiver wallet address
   # @param expected_sender [String] Expected sender wallet address
+  # @param token [String] Token type (USDT, USDC, SOL) - defaults to SOL
   # @return [Hash] Transaction details
-  def self.verify_transaction(signature:, expected_amount:, expected_receiver:, expected_sender: nil)
+  def self.verify_transaction(signature:, expected_amount:, expected_receiver:, expected_sender: nil, token: 'SOL')
     Rails.logger.info "Verifying transaction: #{signature}"
     Rails.logger.info "Expected receiver: #{expected_receiver}"
     Rails.logger.info "Expected sender: #{expected_sender}"
@@ -133,23 +134,40 @@ class SolanaTransactionService
         raise InvalidTransaction, "Transaction receiver #{actual_receiver} does not match expected #{expected_receiver_clean}"
       end
 
-      # Validate amount - allow if paid amount is >= expected (user can overpay)
-      amount_sol = details[:amount_lamports].to_f / LAMPORTS_PER_SOL
-      expected_sol = expected_amount.to_f
-      tolerance = 0.01 # Allow 1% variance for price fluctuations
-
-      # Check if user paid enough (allow overpayment, but not underpayment beyond tolerance)
-      if amount_sol < (expected_sol - tolerance)
-        raise InvalidTransaction, "Transaction amount #{amount_sol} SOL is less than expected #{expected_sol} SOL"
+      # Get token decimals based on token type
+      token_decimals = case token.to_s.upcase
+      when 'USDT', 'USDC' then 6  # USDT/USDC use 6 decimals
+      when 'SOL' then 9            # Native SOL uses 9 decimals
+      else 9                       # Default to SOL decimals
       end
 
-      Rails.logger.info "Amount validation passed: paid #{amount_sol} SOL, expected #{expected_sol} SOL"
+      # Convert lamports/smallest unit to token amount
+      actual_amount = details[:amount_lamports].to_f / (10 ** token_decimals)
+      expected_token_amount = expected_amount.to_f
+
+      # For USDT/USDC, use tighter tolerance since they're stablecoins
+      tolerance = (token.to_s.upcase == 'SOL') ? 0.01 : 0.000001
+
+      Rails.logger.info "Amount validation:"
+      Rails.logger.info "  Token: #{token}"
+      Rails.logger.info "  Decimals: #{token_decimals}"
+      Rails.logger.info "  Raw lamports: #{details[:amount_lamports]}"
+      Rails.logger.info "  Actual amount: #{actual_amount} #{token}"
+      Rails.logger.info "  Expected amount: #{expected_token_amount} #{token}"
+      Rails.logger.info "  Tolerance: #{tolerance}"
+
+      # Check if user paid enough (allow overpayment, but not underpayment beyond tolerance)
+      if actual_amount < (expected_token_amount - tolerance)
+        raise InvalidTransaction, "Transaction amount #{actual_amount} #{token} is less than expected #{expected_token_amount} #{token}"
+      end
+
+      Rails.logger.info "Amount validation passed: paid #{actual_amount} #{token}, expected #{expected_token_amount} #{token}"
 
       {
         signature: signature,
         from_address: details[:from_address],
         to_address: details[:to_address],
-        amount: amount_sol,
+        amount: actual_amount,  # Amount in token's base unit (USDT, SOL, etc.)
         amount_lamports: details[:amount_lamports],
         block_timestamp: details[:block_timestamp],
         block_number: details[:block_number],
@@ -162,12 +180,19 @@ class SolanaTransactionService
       # This can happen with very recent transactions
       Rails.logger.warn "Transaction #{signature} found in signatures but full details not available yet"
 
+      # Get token decimals
+      token_decimals = case token.to_s.upcase
+      when 'USDT', 'USDC' then 6
+      when 'SOL' then 9
+      else 9
+      end
+
       {
         signature: signature,
         from_address: expected_sender,
         to_address: expected_receiver,
         amount: expected_amount.to_f,
-        amount_lamports: (expected_amount.to_f * LAMPORTS_PER_SOL).to_i,
+        amount_lamports: (expected_amount.to_f * (10 ** token_decimals)).to_i,
         block_timestamp: tx_signature['blockTime'],
         block_number: tx_signature['slot'],
         confirmations: 1,

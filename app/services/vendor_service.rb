@@ -21,17 +21,17 @@ module VendorService
     get(ENV['VENDOR_URL'], path, body)
   end
 
-  def get_products
+  def get_products(page: 1, per_page: 100)
     secret_key = ENV['VENDOR_SECRET_KEY'].to_s        # guard against nil
     merchant_id = ENV['VENDOR_MERCHANT_ID'].to_s
     path = '/merchant-products'              # vendor products endpoint
     signature = OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'), secret_key, merchant_id + path)
 
-    # include pagination query params by default
+    # include pagination query params
     body = {
       signature: signature,
-      page: 1,
-      per_page: 100
+      page: page,
+      per_page: per_page
     }
 
     get(ENV['VENDOR_URL'], path, body)
@@ -85,8 +85,8 @@ module VendorService
   def create_order(product_id:, product_item_id:, user_input:, partner_order_id:, callback_url:, price_usdt: nil)
     secret_key = ENV['VENDOR_SECRET_KEY'].to_s
     merchant_id = ENV['VENDOR_MERCHANT_ID'].to_s
-    path = "/merchant-products/#{product_id}/items"
-    payload = merchant_id + path + product_id
+    path = "/merchant-order"
+    payload = merchant_id + path
     signature = OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'), secret_key, payload)
 
     # Determine price to send to vendor
@@ -109,6 +109,7 @@ module VendorService
     end
 
     body = {
+      signature: signature,  # Add signature to request body
       productId: product_id,
       productItemId: product_item_id,
       data: user_input,

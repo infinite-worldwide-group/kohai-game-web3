@@ -18,7 +18,7 @@ class VerifyTransactionJob < ApplicationJob
     Rails.logger.info "Transaction Signature: #{tx_signature}"
     Rails.logger.info "Platform Wallet: #{platform_wallet}"
     Rails.logger.info "User Wallet: #{user_wallet}"
-    Rails.logger.info "Expected Amount (SOL): #{order.crypto_amount}"
+    Rails.logger.info "Expected Amount: #{order.crypto_amount} #{order.crypto_currency}"
     Rails.logger.info "=" * 80
 
     begin
@@ -27,7 +27,8 @@ class VerifyTransactionJob < ApplicationJob
         signature: tx_signature,
         expected_amount: order.crypto_amount,
         expected_receiver: platform_wallet,
-        expected_sender: user_wallet
+        expected_sender: user_wallet,
+        token: order.crypto_currency # Pass token type (USDT, USDC, SOL)
       )
 
       # Update crypto transaction with verified details
