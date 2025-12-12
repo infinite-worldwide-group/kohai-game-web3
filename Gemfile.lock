@@ -114,7 +114,12 @@ GEM
     drb (2.2.3)
     erb (5.0.1)
     erubi (1.13.1)
+    et-orbi (1.4.0)
+      tzinfo
     fiber-storage (1.0.1)
+    fugit (1.12.1)
+      et-orbi (~> 1.4)
+      raabro (~> 1.4)
     globalid (1.2.1)
       activesupport (>= 6.1)
     graphiql-rails (1.10.5)
@@ -141,6 +146,7 @@ GEM
     jbuilder (2.13.0)
       actionview (>= 5.0.0)
       activesupport (>= 5.0.0)
+    json (2.12.2)
     jwt (2.10.1)
       base64
     logger (1.7.0)
@@ -182,6 +188,7 @@ GEM
     public_suffix (6.0.2)
     puma (6.6.0)
       nio4r (~> 2.0)
+    raabro (1.4.0)
     racc (1.8.1)
     rack (3.1.15)
     rack-cors (3.0.0)
@@ -227,6 +234,10 @@ GEM
     rdoc (6.14.0)
       erb
       psych (>= 4.0.0)
+    redis (5.4.1)
+      redis-client (>= 0.22.0)
+    redis-client (0.26.2)
+      connection_pool
     regexp_parser (2.10.0)
     reline (0.6.1)
       io-console (~> 0.5)
@@ -241,6 +252,16 @@ GEM
       rexml (~> 3.2, >= 3.2.5)
       rubyzip (>= 1.2.2, < 3.0)
       websocket (~> 1.0)
+    sidekiq (8.0.4)
+      connection_pool (>= 2.5.0)
+      json (>= 2.9.0)
+      logger (>= 1.6.2)
+      rack (>= 3.1.0)
+      redis-client (>= 0.23.2)
+    sidekiq-cron (1.12.0)
+      fugit (~> 1.8)
+      globalid (>= 1.0.1)
+      sidekiq (>= 6)
     sprockets (4.2.2)
       concurrent-ruby (~> 1.0)
       logger
@@ -292,8 +313,11 @@ DEPENDENCIES
   puma (>= 5.0)
   rack-cors
   rails (~> 7.1.5, >= 7.1.5.1)
+  redis (>= 4.0.1)
   resend
   selenium-webdriver
+  sidekiq (~> 8.0)
+  sidekiq-cron (~> 1.12)
   sprockets-rails
   stimulus-rails
   turbo-rails

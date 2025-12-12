@@ -2,8 +2,26 @@ class UpdateLatestDenomJob < ApplicationJob
   queue_as :default
 
   def perform(*args)
-    all = VendorService.get_products
-    api_items = all['data'] || []
+    # Fetch all products with pagination
+    api_items = []
+    page = 1
+    per_page = 100
+
+    loop do
+      response = VendorService.get_products(page: page, per_page: per_page)
+      batch = response['data'] || []
+      break if batch.empty?
+
+      api_items.concat(batch)
+      Rails.logger.info "Fetched page #{page}: #{batch.size} products (total: #{api_items.size})"
+
+      # Break if we got fewer items than requested (last page)
+      break if batch.size < per_page
+
+      page += 1
+    end
+
+    Rails.logger.info "Total products fetched from vendor API: #{api_items.size}"
 
     # 🔥 NEW — Collect all codes from API
     api_codes = api_items.map { |item| item["id"].to_s }
@@ -23,12 +41,41 @@ class UpdateLatestDenomJob < ApplicationJob
       prod.origin_id = item["id"].to_s
       prod.publisher = item["publisher"] if item["publisher"].present?
       prod.logo_url = item["logoUrl"] if item["logoUrl"].present?
-      prod.avatar_url = item["avatarUrl"] if item["avatarUrl"].present?
+      prod.avatar_url = item["profilePictureUrl"] if item["profilePictureUrl"].present?
       prod.publisher_logo_url = item["publisherLogoUrl"] if item["publisherLogoUrl"].present?
-      
+
       unless prod.save
-        Rails.logger.error "Failed to save TopupProduct #{code}: #{prod.errors.full_messages.join(', ')}"
-        next
+        # Handle slug uniqueness conflicts
+        if prod.errors[:slug].include?("has already been taken")
+          # Find the conflicting product
+          conflicting_prod = TopupProduct.find_by(slug: prod.slug)
+
+          if conflicting_prod && conflicting_prod.code != code
+            # The conflicting product has a different code
+            # Check if it's in the current API response
+            if api_codes.include?(conflicting_prod.code)
+              # Both products are active - append code to make slug unique
+              prod.slug = "#{prod.slug}-#{code}"
+              Rails.logger.info "Slug conflict for #{code}: appending code to slug"
+            else
+              # Conflicting product is not in API - update its slug and retry
+              old_code = conflicting_prod.code
+              conflicting_prod.update_column(:slug, "#{conflicting_prod.slug}-old-#{old_code}")
+              Rails.logger.info "Freed up slug '#{prod.slug}' from inactive product #{old_code}"
+            end
+
+            # Retry save
+            unless prod.save
+              error_msg = "Failed to save TopupProduct #{code} after slug conflict resolution: #{prod.errors.full_messages.join(', ')}"
+              Rails.logger.error error_msg
+              next
+            end
+          end
+        else
+          error_msg = "Failed to save TopupProduct #{code}: #{prod.errors.full_messages.join(', ')}"
+          Rails.logger.error error_msg
+          next
+        end
       end
 
       if item["logoUrl"].present?

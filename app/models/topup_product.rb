@@ -11,6 +11,8 @@ class TopupProduct < ApplicationRecord
   # Scopes
   scope :active, -> { where(is_active: true) }
   scope :by_category, ->(category) { where(category: category) }
+  scope :featured, -> { where(featured: true) }
+  scope :by_priority, -> { order(featured: :desc, created_at: :desc) }
   scope :recent, -> { order(created_at: :desc) }
 
   after_update :update_user_input

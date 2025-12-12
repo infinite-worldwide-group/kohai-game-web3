@@ -121,19 +121,19 @@ module VendorService
     post(ENV['VENDOR_URL'], path, body)
   end
 
-  def check_order_detail(reference_id)
+  def check_order_detail(reference_id, invoice_id)
     secret_key = ENV['VENDOR_SECRET_KEY'].to_s
     merchant_id = ENV['VENDOR_MERCHANT_ID'].to_s
     path = "/merchant-order/#{reference_id}"
-    payload = merchant_id + path + reference_id
+    payload = merchant_id + path
     signature = OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'), secret_key, payload)
 
     body = {
       signature: signature,
       api_key: ENV['VENDOR_API_KEY'],
-      order_id: reference_id
+      invoiceId: invoice_id
     }
-    post(ENV['VENDOR_URL'], path, body)
+    get(ENV['VENDOR_URL'], path, body)
   end
 
   private

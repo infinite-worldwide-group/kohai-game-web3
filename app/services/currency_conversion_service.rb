@@ -6,16 +6,18 @@ module CurrencyConversionService
   extend self
 
   # Fallback rates if database is unavailable (should rarely be used)
+  # Rate = How much USD is 1 unit of this currency worth
+  # Example: 1 MYR = 0.222 USD (because 1 USD = 4.5 MYR)
   FALLBACK_RATES = {
     'USD' => 1.0,
     'USDT' => 1.0,
     'USDC' => 1.0,
-    'MYR' => 4.50,
-    'SGD' => 1.35,
-    'THB' => 35.0,
-    'IDR' => 15700.0,
-    'PHP' => 56.0,
-    'VND' => 24500.0
+    'MYR' => 0.222,    # 1 MYR = ~0.222 USD (1 USD = ~4.5 MYR)
+    'SGD' => 0.741,    # 1 SGD = ~0.741 USD (1 USD = ~1.35 SGD)
+    'THB' => 0.0286,   # 1 THB = ~0.0286 USD (1 USD = ~35 THB)
+    'IDR' => 0.0000637, # 1 IDR = ~0.0000637 USD (1 USD = ~15700 IDR)
+    'PHP' => 0.0179,   # 1 PHP = ~0.0179 USD (1 USD = ~56 PHP)
+    'VND' => 0.0000408  # 1 VND = ~0.0000408 USD (1 USD = ~24500 VND)
   }.freeze
 
   # Get live exchange rate for a currency from database

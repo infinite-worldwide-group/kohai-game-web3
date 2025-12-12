@@ -12,7 +12,8 @@ module Types
     field :origin_id, String, null: true
     field :category, String, null: true
     field :is_active, Boolean, null: false
-    field :featured, Boolean, null: false
+    field :featured, Boolean, null: false, description: "Whether this product is featured/priority"
+    field :is_priority, Boolean, null: false, description: "Alias for featured field"
     field :publisher, String, null: true
     field :logo_url, String, null: true
     field :avatar_url, String, null: true
@@ -23,6 +24,10 @@ module Types
     field :active, Boolean, null: false
     field :created_at, GraphQL::Types::ISO8601DateTime, null: false
     field :updated_at, GraphQL::Types::ISO8601DateTime, null: false
+
+    # Helper fields for frontend grouping
+    field :game_name, String, null: false, description: "Base game name (extracted from title)"
+    field :region_code, String, null: false, description: "Region code extracted from title (e.g., MY/SG, PH/TH)"
 
     # Vendor object (simplified - just returns vendor_id wrapped in object)
     field :vendor, GraphQL::Types::JSON, null: true
@@ -44,6 +49,10 @@ module Types
       object.is_active
     end
 
+    def is_priority
+      object.featured
+    end    
+    
     def vendor
       return nil unless object.vendor_id
       { id: object.vendor_id }

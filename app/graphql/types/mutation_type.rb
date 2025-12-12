@@ -22,5 +22,10 @@ module Types
     field :create_game_account, mutation: Mutations::User::GameAccounts::CreateGameAccount
     field :validate_game_account_mutation, mutation: Mutations::User::GameAccounts::ValidateGameAccountMutation
     field :delete_game_account, mutation: Mutations::User::GameAccounts::DeleteGameAccount
+
+    # Tier mutations
+    field :create_tier, mutation: Mutations::CreateTier
+    field :update_tier, mutation: Mutations::UpdateTier
+    field :delete_tier, mutation: Mutations::DeleteTier
   end
 end

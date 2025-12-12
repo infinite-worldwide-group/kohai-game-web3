@@ -14,9 +14,14 @@ module Queries
       argument :country_code, String, required: false
       argument :for_store, Boolean, required: false
       argument :genre, String, required: false
+      argument :featured_only, Boolean, required: false, description: "Show only featured/priority products"
+      argument :sort_by, String, required: false, default_value: "priority", description: "Sort by: priority, recent, title"
 
-      def resolve(category_id: nil, page: 1, per_page: 20, search: nil, country_code: nil, for_store: nil, genre: nil)
+      def resolve(category_id: nil, page: 1, per_page: 20, search: nil, country_code: nil, for_store: nil, genre: nil, featured_only: false, sort_by: "priority")
         products = ::TopupProduct.active
+
+        # Filter by featured/priority
+        products = products.featured if featured_only
 
         # Filter by category
         products = products.by_category(category_id) if category_id.present?
@@ -33,8 +38,20 @@ module Queries
         # This loads all items in a single query instead of one query per product
         products = products.includes(:topup_product_items)
 
+        # Sort by priority or other criteria
+        case sort_by
+        when "priority"
+          products = products.by_priority  # Featured first, then recent
+        when "recent"
+          products = products.recent
+        when "title"
+          products = products.order(:title)
+        else
+          products = products.by_priority  # Default to priority
+        end
+
         # Pagination
-        products = products.recent.offset((page - 1) * per_page).limit(per_page)
+        products = products.offset((page - 1) * per_page).limit(per_page)
 
         products
       end

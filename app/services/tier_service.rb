@@ -98,20 +98,38 @@ module TierService
 
   # Get discount percentage for a tier
   def discount_for_tier(tier)
+    return 0 unless tier.present?
+
+    # Try to get discount from database
+    if defined?(Tier) && Tier.table_exists?
+      db_tier = Tier.tier_by_key(tier.to_s)
+      return db_tier.discount_percent.to_i if db_tier
+    end
+
+    # Fallback to hardcoded values (support both old and new tier keys)
     case tier&.to_sym
     when :elite then 1
-    when :grandmaster then 2
-    when :legend then 3
+    when :master, :grandmaster then 2
+    when :champion, :legend then 3
     else 0
     end
   end
 
   # Get style for a tier
   def style_for_tier(tier)
+    return nil unless tier.present?
+
+    # Try to get style from database
+    if defined?(Tier) && Tier.table_exists?
+      db_tier = Tier.tier_by_key(tier.to_s)
+      return db_tier.badge_color if db_tier&.badge_color.present?
+    end
+
+    # Fallback to hardcoded values (support both old and new tier keys)
     case tier&.to_sym
     when :elite then "silver"
-    when :grandmaster then "gold"
-    when :legend then "orange"
+    when :master, :grandmaster then "gold"
+    when :champion, :legend then "orange"
     else nil
     end
   end

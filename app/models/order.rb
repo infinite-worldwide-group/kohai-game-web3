@@ -23,6 +23,8 @@ class Order < ApplicationRecord
   scope :topup_product, -> { where(order_type: 'topup_product') }
   scope :pending, -> { where(status: 'pending') }
   scope :succeeded, -> { where(status: 'succeeded') }
+  scope :processing_with_invoice, -> { where(status: 'processing').where.not(invoice_id: nil) }
+  scope :needs_status_check, -> { processing_with_invoice.where('updated_at < ?', 5.minutes.ago) }
 
   # AASM State Machine
   aasm column: 'status' do
@@ -62,6 +64,79 @@ class Order < ApplicationRecord
 
   # Callbacks
   before_validation :generate_order_number, if: -> { order_number.blank? }, on: :create
+
+  # Instance methods
+
+  # Check order status from vendor and update accordingly
+  # @return [Boolean] true if status was updated, false otherwise
+  def check_vendor_status
+    # Only check orders that are in processing state and have invoice_id
+    return false unless processing? && invoice_id.present? && order_number.present?
+
+    begin
+      Rails.logger.info("Checking vendor status for order #{order_number} (invoice: #{invoice_id})")
+
+      # Call vendor API to check order status
+      response = VendorService.check_order_detail(order_number, invoice_id)
+
+      # Check if response is successful
+      unless response.present? && response['message'] == 'Success'
+        Rails.logger.warn("Order #{order_number}: Vendor API returned non-success: #{response.inspect}")
+        return false
+      end
+
+      data = response['data']
+      vendor_status = data['status']
+
+      Rails.logger.info("Order #{order_number}: Vendor status is '#{vendor_status}'")
+
+      case vendor_status
+      when 'succeeded'
+        # Order succeeded at vendor, mark as succeeded
+        success!
+        Rails.logger.info("Order #{order_number}: ✓ Marked as succeeded based on vendor status")
+
+        # Log the successful vendor check
+        vendor_transaction_logs.create!(
+          vendor_name: 'status_check',
+          request_body: { order_number: order_number, invoice_id: invoice_id }.to_json,
+          response_body: response.to_json,
+          status: 'succeeded',
+          executed_at: Time.current
+        )
+
+        true
+      when 'failed', 'cancelled'
+        # Order failed at vendor, mark as failed
+        fail!
+        update(error_message: "Vendor order #{vendor_status}: #{data['errorMessage'] || 'Unknown error'}")
+        Rails.logger.error("Order #{order_number}: ✗ Marked as failed based on vendor status")
+
+        # Log the failed vendor check
+        vendor_transaction_logs.create!(
+          vendor_name: 'status_check',
+          request_body: { order_number: order_number, invoice_id: invoice_id }.to_json,
+          response_body: response.to_json,
+          status: 'failed',
+          executed_at: Time.current
+        )
+
+        true
+      when 'processing', 'pending'
+        # Still processing, do nothing
+        Rails.logger.info("Order #{order_number}: Still processing at vendor")
+        false
+      else
+        Rails.logger.warn("Order #{order_number}: Unknown vendor status '#{vendor_status}'")
+        false
+      end
+
+    rescue => e
+      Rails.logger.error("Order #{order_number}: Error checking vendor status: #{e.message}")
+      Rails.logger.error(e.backtrace.join("\n"))
+      false
+    end
+  end
 
   #private
 

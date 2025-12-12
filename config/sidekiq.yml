@@ -1,0 +1,30 @@
+---
+# Sidekiq configuration
+
+# Concurrency (number of threads)
+:concurrency: 5
+
+# Queues to process (queue_name: weight)
+# Higher weight = more priority
+:queues:
+  - default
+  - mailers
+
+# Timeout for job execution (25 seconds)
+:timeout: 25
+
+# Verbose logging (set to false in production)
+:verbose: false
+
+# Max number of retries for failed jobs
+:max_retries: 3
+
+# Production settings
+production:
+  :concurrency: 10
+  :timeout: 30
+
+# Development settings
+development:
+  :concurrency: 2
+  :verbose: true

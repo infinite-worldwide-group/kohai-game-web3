@@ -5,6 +5,46 @@ require 'json'
 module KohaiRpcService
   extend self
 
+  # KOHAI Tier Thresholds - Now loaded from Tier database table
+  # Falls back to ENV variables for backward compatibility during testing
+  # Usage: Update Tier table or set KOHAI_ELITE_MIN, KOHAI_GRANDMASTER_MIN, KOHAI_LEGEND_MIN in .env
+
+  # Class method to get current thresholds from database (with ENV fallback)
+  def self.tier_thresholds
+    # Try to load from database, fall back to ENV variables
+    if defined?(Tier) && Tier.table_exists?
+      elite_tier = Tier.active.order(:minimum_balance).first
+      grandmaster_tier = Tier.active.order(:minimum_balance).second
+      legend_tier = Tier.active.order(:minimum_balance).third
+
+      {
+        elite: elite_tier&.minimum_balance || ENV.fetch("KOHAI_ELITE_MIN", "5000").to_f,
+        grandmaster: grandmaster_tier&.minimum_balance || ENV.fetch("KOHAI_GRANDMASTER_MIN", "50000").to_f,
+        legend: legend_tier&.minimum_balance || ENV.fetch("KOHAI_LEGEND_MIN", "300000").to_f
+      }
+    else
+      # Fallback to ENV variables if database not available
+      {
+        elite: ENV.fetch("KOHAI_ELITE_MIN", "5000").to_f,
+        grandmaster: ENV.fetch("KOHAI_GRANDMASTER_MIN", "50000").to_f,
+        legend: ENV.fetch("KOHAI_LEGEND_MIN", "300000").to_f
+      }
+    end
+  end
+
+  # Get the actual tier minimum thresholds
+  def self.elite_min
+    tier_thresholds[:elite]
+  end
+
+  def self.grandmaster_min
+    tier_thresholds[:grandmaster]
+  end
+
+  def self.legend_min
+    tier_thresholds[:legend]
+  end
+
   # Get token accounts owned by a specific wallet address for a particular token mint
   # @param owner_address [String] The wallet address that owns the token accounts
   # @param mint_address [String] The token mint address to filter by
@@ -51,39 +91,83 @@ module KohaiRpcService
   end
 
   # Determine tier based on $KOHAI holdings
+  # Uses Tier database table to determine thresholds and tier information
+  # Falls back to ENV variables and hardcoded defaults if database unavailable
   # @param wallet_address [String] The wallet address to check
-  # @return [Hash] Tier information { tier: :elite/:grandmaster/:legend, discount_percent: 1/2/3, badge: "Elite"/etc, style: "silver"/"gold"/"orange" }
+  # @return [Hash] Tier information including tier name, discount, badge, etc.
   def get_tier(wallet_address)
     balance = get_kohai_balance(wallet_address)
 
-    case balance
-    when 3_000_000..Float::INFINITY
+    # Try to get tier from database
+    if defined?(Tier) && Tier.table_exists?
+      tier = Tier.get_tier_for_balance(balance)
+      return tier_response_from_db(tier, balance) unless tier.nil?
+    end
+
+    # Fallback to ENV variable-based thresholds
+    tier_response_from_env(balance)
+  end
+
+  private
+
+  def tier_response_from_db(tier, balance)
+    if tier.is_a?(OpenStruct) && tier.tier_key == "none"
       {
-        tier: :legend,
-        tier_name: "Legend",
-        discount_percent: 3,
-        referral_percent: 3,
-        badge: "Legend",
-        style: "orange", # glowing orange name
+        tier: :none,
+        tier_name: nil,
+        discount_percent: 0,
+        referral_percent: 0,
+        badge: nil,
+        style: nil,
         balance: balance
       }
-    when 500_000...3_000_000
+    else
       {
-        tier: :grandmaster,
-        tier_name: "Grandmaster",
+        tier: tier.tier_key.to_sym,
+        tier_name: tier.name,
+        discount_percent: tier.discount_percent.to_i,
+        referral_percent: tier.discount_percent.to_i,
+        badge: tier.badge_name,
+        style: tier.badge_color,
+        balance: balance
+      }
+    end
+  end
+
+  def tier_response_from_env(balance)
+    elite_min = self.class.elite_min
+    grandmaster_min = self.class.grandmaster_min
+    legend_min = self.class.legend_min
+
+    # Support both old tier keys (elite/grandmaster/legend) and new ones (elite/master/champion)
+    case balance
+    when legend_min..Float::INFINITY
+      {
+        tier: :champion,  # New tier_key
+        tier_name: "Champion VVIP+",
+        discount_percent: 3,
+        referral_percent: 3,
+        badge: "CHAMPION VVIP+",
+        style: "orange",
+        balance: balance
+      }
+    when grandmaster_min...legend_min
+      {
+        tier: :master,  # New tier_key
+        tier_name: "Master VVIP",
         discount_percent: 2,
         referral_percent: 2,
-        badge: "Grandmaster",
+        badge: "MASTER VVIP",
         style: "gold",
         balance: balance
       }
-    when 50_000...500_000
+    when elite_min...grandmaster_min
       {
         tier: :elite,
-        tier_name: "Elite",
+        tier_name: "Elite VIP",
         discount_percent: 1,
         referral_percent: 1,
-        badge: "Elite",
+        badge: "ELITE VIP",
         style: "silver",
         balance: balance
       }

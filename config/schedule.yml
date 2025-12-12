@@ -1,0 +1,27 @@
+# Sidekiq-cron schedule configuration
+# Cron format: minute hour day month day_of_week
+# Examples:
+#   Every 2 hours: "0 */2 * * *"
+#   Every day at 3am: "0 3 * * *"
+#   Every 30 minutes: "*/30 * * * *"
+
+# Update currency exchange rates every 3 hours
+update_currency_rates:
+  cron: "0 */3 * * *"  # Every 3 hours
+  class: "UpdateCurrencyRatesJob"
+  queue: default
+  description: "Update fiat currency exchange rates from external API"
+
+# Update product catalog daily at 2am
+update_products:
+  cron: "0 2 * * *"  # Every day at 2am
+  class: "UpdateLatestDenomJob"
+  queue: default
+  description: "Sync product catalog from vendor API"
+
+# Check processing orders every 3 minutes
+check_processing_orders:
+  cron: "*/3 * * * *"  # Every 3 minutes
+  class: "CheckProcessingOrdersJob"
+  queue: default
+  description: "Check status of processing orders from vendor API and update order status"

@@ -188,7 +188,189 @@ mutation CreateOrder {
 
 ---
 
-## Frontend Implementation Examples
+### 4. Get Topup Products with Tier-Based Discounted Prices
+
+The frontend can now display discounted prices directly on product listings based on the current user's tier.
+
+**Query:**
+```graphql
+query GetTopupProducts {
+  topupProducts(categoryId: "games", page: 1, perPage: 20) {
+    id
+    title
+    code
+    category
+    logoUrl
+    avatarUrl
+    topupProductItems {
+      id
+      name
+      price
+      currency
+      
+      # NEW: Tier-based pricing fields
+      discountPercent      # Current user's discount (0, 1, 2, or 3)
+      discountAmount       # Discount amount in original currency
+      discountedPrice      # Final price after discount in original currency (MYR)
+      discountedPriceUsdt  # Final price after discount in USDT
+      tierInfo {           # User's current tier information
+        tier
+        tierName
+        discountPercent
+        badge
+        style
+        balance
+      }
+    }
+  }
+}
+```
+
+**Example Response (Legend Tier User):**
+```json
+{
+  "data": {
+    "topupProducts": [
+      {
+        "id": "1",
+        "title": "Mobile Legends",
+        "code": "mlbb",
+        "category": "games",
+        "logoUrl": "https://...",
+        "topupProductItems": [
+          {
+            "id": "item-1",
+            "name": "500 Diamonds",
+            "price": 10.0,
+            "currency": "MYR",
+            "discountPercent": 3,           # Legend tier = 3% discount
+            "discountAmount": 0.30,         # 10.0 × 3% = 0.30
+            "discountedPrice": 9.70,        # 10.0 - 0.30 = 9.70 MYR
+            "discountedPriceUsdt": 2.18,    # ~2.18 USDT after conversion
+            "tierInfo": {
+              "tier": "legend",
+              "tierName": "Legend",
+              "discountPercent": 3,
+              "badge": "Legend",
+              "style": "orange",
+              "balance": 5000000.0
+            }
+          },
+          {
+            "id": "item-2",
+            "name": "1000 Diamonds",
+            "price": 19.99,
+            "currency": "MYR",
+            "discountPercent": 3,
+            "discountAmount": 0.60,
+            "discountedPrice": 19.39,
+            "discountedPriceUsdt": 4.36,
+            "tierInfo": {
+              "tier": "legend",
+              "tierName": "Legend",
+              "discountPercent": 3,
+              "badge": "Legend",
+              "style": "orange",
+              "balance": 5000000.0
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Example Response (Non-Tier User):**
+```json
+{
+  "data": {
+    "topupProducts": [
+      {
+        "id": "1",
+        "title": "Mobile Legends",
+        "topupProductItems": [
+          {
+            "id": "item-1",
+            "name": "500 Diamonds",
+            "price": 10.0,
+            "currency": "MYR",
+            "discountPercent": 0,           # No tier = 0% discount
+            "discountAmount": 0.0,          # No discount
+            "discountedPrice": 10.0,        # Full price
+            "discountedPriceUsdt": 2.25,    # ~2.25 USDT after conversion
+            "tierInfo": {
+              "tier": null,
+              "tierName": null,
+              "discountPercent": 0,
+              "badge": null,
+              "style": null,
+              "balance": 25000.0
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+#### Usage in Frontend
+
+**React Example - Display Pricing with Discount:**
+```jsx
+function TopupProductItem({ item }) {
+  const { discountedPrice, discountPercent, price, currency } = item;
+
+  return (
+    <div className="product-item">
+      <h3>{item.name}</h3>
+      
+      {discountPercent > 0 ? (
+        <div className="pricing">
+          <span className="original-price" style={{ textDecoration: 'line-through' }}>
+            {price.toFixed(2)} {currency}
+          </span>
+          <span className="discount-badge">
+            -{discountPercent}%
+          </span>
+          <span className="discounted-price">
+            {discountedPrice.toFixed(2)} {currency}
+          </span>
+        </div>
+      ) : (
+        <span className="price">
+          {price.toFixed(2)} {currency}
+        </span>
+      )}
+
+      {item.tierInfo && item.tierInfo.tier && (
+        <p className={`tier-badge ${item.tierInfo.style}`}>
+          {item.tierInfo.badge} discount applied
+        </p>
+      )}
+
+      <button onClick={() => purchaseItem(item.id)}>
+        Buy Now
+      </button>
+    </div>
+  );
+}
+```
+
+---
+
+### How Discounted Pricing Works
+
+1. **Automatic Calculation**: Backend automatically includes `discountPercent`, `discountAmount`, `discountedPrice`, and `discountedPriceUsdt` in product item responses
+2. **User-Specific**: Each user sees their own tier-based discount (no discount if not a holder)
+3. **Real-Time**: Discounts are calculated based on current user tier status
+4. **Multiple Currencies**: Works with both MYR and USDT pricing
+5. **Tier Levels**:
+   - **No Tier**: 0% discount
+   - **Elite**: 1% discount (50k-499k $KOHAI)
+   - **Grandmaster**: 2% discount (500k-2.9M $KOHAI)
+   - **Legend**: 3% discount (3M+ $KOHAI)
 
 ### 1. Display User Tier Badge
 

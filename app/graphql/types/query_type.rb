@@ -27,5 +27,9 @@ module Types
     # Currency queries
     field :supported_currencies, resolver: Queries::Currencies::SupportedCurrencies
     field :convert_currency, resolver: Queries::Currencies::ConvertCurrency
+
+    # Tier queries
+    field :tiers, resolver: Queries::Tiers
+    field :tier_by_key, resolver: Queries::TierByKey
   end
 end
