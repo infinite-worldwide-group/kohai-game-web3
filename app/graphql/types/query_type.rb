@@ -31,5 +31,12 @@ module Types
     # Tier queries
     field :tiers, resolver: Queries::Tiers
     field :tier_by_key, resolver: Queries::TierByKey
+
+    # Referral queries
+    field :referral_code, resolver: Queries::Referrals::GetReferralCode
+    field :referral_stats, resolver: Queries::Referrals::GetReferralStats
+
+    # Voucher queries
+    field :active_vouchers, resolver: Queries::Vouchers::GetActiveVouchers
   end
 end

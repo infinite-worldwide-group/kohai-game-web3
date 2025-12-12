@@ -27,5 +27,9 @@ module Types
     field :create_tier, mutation: Mutations::CreateTier
     field :update_tier, mutation: Mutations::UpdateTier
     field :delete_tier, mutation: Mutations::DeleteTier
+
+    # Referral mutations
+    field :apply_referral_code, mutation: Mutations::Referrals::ApplyReferralCode
+    field :claim_earnings, mutation: Mutations::Referrals::ClaimEarnings
   end
 end

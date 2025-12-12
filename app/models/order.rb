@@ -6,8 +6,10 @@ class Order < ApplicationRecord
   belongs_to :fiat_currency, optional: true
   belongs_to :topup_product_item, optional: true
   belongs_to :game_account, optional: true
+  belongs_to :voucher, optional: true
   has_one :crypto_transaction, dependent: :destroy
   has_many :vendor_transaction_logs, dependent: :destroy
+  has_one :referrer_earning, dependent: :restrict_with_error
 
   # Validations
   validates :order_number, presence: true, uniqueness: true
@@ -47,6 +49,7 @@ class Order < ApplicationRecord
 
     event :success do
       transitions from: [:pending, :paid, :processing], to: :succeeded
+      after :create_referrer_earning_if_applicable
     end
 
     event :complete do
@@ -277,6 +280,44 @@ class Order < ApplicationRecord
       Rails.logger.error("Order #{order_number}: Error validating transaction #{signature}: #{e.message}")
       false
     end
+  end
+
+  def create_referrer_earning_if_applicable
+    return unless user.referred_by_id.present?
+
+    referral = user.referral_received
+    return unless referral.present?
+
+    # Prevent duplicate earnings
+    return if referrer_earning.present?
+
+    referrer = referral.referrer
+    referrer_tier = TierService.check_tier_status(referrer)
+    commission_percent = referrer_tier[:referral_percent] || 0
+
+    return if commission_percent.zero?
+
+    commission_amount = (crypto_amount * commission_percent / 100.0).round(8)
+
+    ReferrerEarning.create!(
+      referrer: referrer,
+      referred_user: user,
+      order: self,
+      referral: referral,
+      order_amount: crypto_amount,
+      commission_percent: commission_percent,
+      commission_amount: commission_amount,
+      currency: crypto_currency,
+      status: 'claimable' # Immediately claimable
+    )
+
+    # Update referrer's total earnings
+    referrer.referral_code.increment!(:total_earnings, commission_amount)
+
+    Rails.logger.info("Order #{order_number}: Created referrer earning of #{commission_amount} #{crypto_currency} for referrer #{referrer.id}")
+  rescue => e
+    Rails.logger.error("Order #{order_number}: Failed to create referrer earning: #{e.message}")
+    Rails.logger.error(e.backtrace.join("\n"))
   end
 
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_12_11_155056) do
+ActiveRecord::Schema[7.1].define(version: 2025_12_12_100005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -126,6 +126,10 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_11_155056) do
     t.jsonb "metadata"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "voucher_id"
+    t.decimal "voucher_discount_percent", precision: 5, scale: 2
+    t.decimal "voucher_discount_amount", precision: 18, scale: 8
+    t.string "final_discount_source"
     t.index ["created_at"], name: "index_orders_on_created_at"
     t.index ["fiat_currency_id"], name: "index_orders_on_fiat_currency_id"
     t.index ["game_account_id"], name: "index_orders_on_game_account_id"
@@ -137,6 +141,53 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_11_155056) do
     t.index ["user_id", "fiat_currency_id"], name: "index_orders_on_user_id_and_fiat_currency_id"
     t.index ["user_id", "status", "created_at"], name: "index_orders_on_user_id_and_status_and_created_at"
     t.index ["user_id"], name: "index_orders_on_user_id"
+    t.index ["voucher_id"], name: "index_orders_on_voucher_id"
+  end
+
+  create_table "referral_codes", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "code", null: false
+    t.integer "total_uses", default: 0, null: false
+    t.decimal "total_earnings", precision: 18, scale: 8, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_referral_codes_on_code", unique: true
+    t.index ["user_id"], name: "index_referral_codes_on_user_id", unique: true
+  end
+
+  create_table "referrals", force: :cascade do |t|
+    t.bigint "referrer_id", null: false
+    t.bigint "referred_user_id", null: false
+    t.bigint "referral_code_id", null: false
+    t.datetime "applied_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["referral_code_id"], name: "index_referrals_on_referral_code_id"
+    t.index ["referred_user_id"], name: "index_referrals_on_referred_user_id", unique: true
+    t.index ["referrer_id", "referred_user_id"], name: "index_referrals_on_referrer_id_and_referred_user_id", unique: true
+    t.index ["referrer_id"], name: "index_referrals_on_referrer_id"
+  end
+
+  create_table "referrer_earnings", force: :cascade do |t|
+    t.bigint "referrer_id", null: false
+    t.bigint "referred_user_id", null: false
+    t.bigint "order_id", null: false
+    t.bigint "referral_id", null: false
+    t.decimal "order_amount", precision: 18, scale: 8, null: false
+    t.decimal "commission_percent", precision: 5, scale: 2, null: false
+    t.decimal "commission_amount", precision: 18, scale: 8, null: false
+    t.string "currency", default: "USDT", null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "claimed_at"
+    t.string "claim_transaction_signature"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["order_id"], name: "index_referrer_earnings_on_order_id"
+    t.index ["referral_id"], name: "index_referrer_earnings_on_referral_id"
+    t.index ["referred_user_id", "order_id"], name: "index_referrer_earnings_on_referred_user_id_and_order_id", unique: true
+    t.index ["referred_user_id"], name: "index_referrer_earnings_on_referred_user_id"
+    t.index ["referrer_id", "status"], name: "index_referrer_earnings_on_referrer_id_and_status"
+    t.index ["referrer_id"], name: "index_referrer_earnings_on_referrer_id"
   end
 
   create_table "tiers", force: :cascade do |t|
@@ -210,7 +261,10 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_11_155056) do
     t.string "tier"
     t.decimal "kohai_balance", precision: 18, scale: 6
     t.datetime "tier_checked_at"
+    t.bigint "referred_by_id"
+    t.datetime "referral_applied_at"
     t.index ["email"], name: "index_users_on_email", unique: true, where: "(email IS NOT NULL)"
+    t.index ["referred_by_id"], name: "index_users_on_referred_by_id"
     t.index ["tier"], name: "index_users_on_tier"
     t.index ["wallet_address"], name: "index_users_on_wallet_address", unique: true
   end
@@ -245,10 +299,41 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_11_155056) do
     t.index ["verification_status"], name: "index_verification_caches_on_verification_status"
   end
 
+  create_table "vouchers", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "referral_id"
+    t.string "voucher_type", null: false
+    t.decimal "discount_percent", precision: 5, scale: 2, null: false
+    t.datetime "expires_at", null: false
+    t.boolean "used", default: false, null: false
+    t.bigint "order_id"
+    t.datetime "used_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["order_id"], name: "index_vouchers_on_order_id"
+    t.index ["referral_id"], name: "index_vouchers_on_referral_id"
+    t.index ["user_id", "used", "expires_at"], name: "index_vouchers_on_user_id_and_used_and_expires_at"
+    t.index ["user_id"], name: "index_vouchers_on_user_id"
+    t.index ["voucher_type"], name: "index_vouchers_on_voucher_type"
+  end
+
   add_foreign_key "game_accounts", "topup_products"
   add_foreign_key "game_accounts", "users"
   add_foreign_key "orders", "fiat_currencies"
   add_foreign_key "orders", "users"
+  add_foreign_key "orders", "vouchers"
+  add_foreign_key "referral_codes", "users"
+  add_foreign_key "referrals", "referral_codes"
+  add_foreign_key "referrals", "users", column: "referred_user_id"
+  add_foreign_key "referrals", "users", column: "referrer_id"
+  add_foreign_key "referrer_earnings", "orders"
+  add_foreign_key "referrer_earnings", "referrals"
+  add_foreign_key "referrer_earnings", "users", column: "referred_user_id"
+  add_foreign_key "referrer_earnings", "users", column: "referrer_id"
   add_foreign_key "topup_product_items", "topup_products"
+  add_foreign_key "users", "users", column: "referred_by_id"
   add_foreign_key "verification_caches", "orders"
+  add_foreign_key "vouchers", "orders"
+  add_foreign_key "vouchers", "referrals"
+  add_foreign_key "vouchers", "users"
 end

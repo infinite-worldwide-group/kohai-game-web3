@@ -73,23 +73,21 @@ module Mutations
         end
         crypto_token = crypto_currency.upcase
 
-        # Get user's tier status with real-time blockchain check
-        tier_status = TierService.check_tier_status(current_user, force_refresh: true)
-
-        # Calculate discounted price using TierService
-        discount_calculation = TierService.calculate_discounted_price(
-          final_amount.to_f,
-          current_user,
-          force_refresh: true
+        # Get best available discount (tier or voucher) using VoucherService
+        discount_info = VoucherService.get_best_discount(
+          user: current_user,
+          original_price: final_amount.to_f
         )
 
         # Extract discount information
-        discount_amount = BigDecimal(discount_calculation[:discount_amount].to_s)
-        discount_percent = discount_calculation[:discount_percent]
-        tier_info = discount_calculation[:tier_info]
+        discount_amount = BigDecimal(discount_info[:discount_amount].to_s)
+        discount_percent = discount_info[:discount_percent]
+        discount_source = discount_info[:source]
+        selected_voucher = discount_info[:voucher]
+        tier_info = discount_info[:tier_info]
 
         # Apply discount to final_amount (MYR price)
-        final_amount = BigDecimal(discount_calculation[:final_price].to_s)
+        final_amount = BigDecimal(discount_info[:final_price].to_s)
 
         # Recalculate crypto_amount from discounted MYR price if not provided by frontend
         if crypto_amount.blank?
@@ -102,8 +100,10 @@ module Mutations
           end
         end
 
-        # Log amounts for debugging
-        Rails.logger.info "VIP_DISCOUNT tier=#{tier_info[:tier_name]} discount=#{discount_percent}% original=#{original_amount} final=#{final_amount}"
+        # Log discount application
+        Rails.logger.info "DISCOUNT_APPLIED source=#{discount_source} discount=#{discount_percent}% " \
+                          "original=#{original_amount} final=#{final_amount} " \
+                          "voucher_id=#{selected_voucher&.id} tier=#{tier_info[:tier_name]}"
         Rails.logger.info "Order amounts - Original: #{original_amount} #{order_currency}, Product: #{final_amount} #{order_currency}, Crypto: #{final_crypto_amount} #{crypto_token}"
 
         # Get platform wallet address
@@ -119,6 +119,7 @@ module Mutations
             user: current_user,
             topup_product_item: product_item,
             game_account: game_account,
+            voucher: selected_voucher,
             # Product price in original currency (e.g., 0.04 MYR)
             amount: final_amount,
             original_amount: original_amount,
@@ -130,11 +131,19 @@ module Mutations
             discount_amount: discount_amount,
             discount_percent: discount_percent,
             tier_at_purchase: tier_info[:tier_name],
+            voucher_discount_percent: selected_voucher&.discount_percent,
+            voucher_discount_amount: discount_source == 'voucher' ? discount_amount : 0,
+            final_discount_source: discount_source,
             # Other fields
             order_type: 'topup',
             user_data: user_data,
             status: 'pending'
           )
+
+          # Mark voucher as used if applied
+          if selected_voucher.present?
+            VoucherService.apply_voucher_to_order(voucher: selected_voucher, order: order)
+          end
 
           # Create crypto transaction record with pending state
           # USDT on Solana uses 6 decimals
