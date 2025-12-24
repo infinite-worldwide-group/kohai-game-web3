@@ -32,6 +32,9 @@ module Types
     # Vendor object (simplified - just returns vendor_id wrapped in object)
     field :vendor, GraphQL::Types::JSON, null: true
 
+    # Favorites
+    field :is_favorite, Boolean, null: false, description: "Whether the current user has favorited this product"
+
     # Associations
     field :topup_product_items, [Types::TopupProductItemType], null: false do
       description "Available items/packages for this product"
@@ -56,6 +59,11 @@ module Types
     def vendor
       return nil unless object.vendor_id
       { id: object.vendor_id }
+    end
+
+    def is_favorite
+      return false unless context[:current_user]
+      context[:current_user].favorite?(object)
     end
   end
 end

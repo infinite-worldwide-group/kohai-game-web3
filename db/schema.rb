@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_12_12_100005) do
+ActiveRecord::Schema[7.1].define(version: 2025_12_18_161626) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -251,6 +251,16 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_12_100005) do
     t.index ["vendor_id"], name: "index_topup_products_on_vendor_id"
   end
 
+  create_table "user_favorites", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "topup_product_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["topup_product_id"], name: "index_user_favorites_on_topup_product_id"
+    t.index ["user_id", "topup_product_id"], name: "index_user_favorites_on_user_and_product", unique: true
+    t.index ["user_id"], name: "index_user_favorites_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "wallet_address", null: false
     t.string "email"
@@ -331,6 +341,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_12_100005) do
   add_foreign_key "referrer_earnings", "users", column: "referred_user_id"
   add_foreign_key "referrer_earnings", "users", column: "referrer_id"
   add_foreign_key "topup_product_items", "topup_products"
+  add_foreign_key "user_favorites", "topup_products"
+  add_foreign_key "user_favorites", "users"
   add_foreign_key "users", "users", column: "referred_by_id"
   add_foreign_key "verification_caches", "orders"
   add_foreign_key "vouchers", "orders"

@@ -20,6 +20,10 @@ class User < ApplicationRecord
   has_many :earnings_as_referrer, class_name: 'ReferrerEarning',
            foreign_key: 'referrer_id', dependent: :restrict_with_error
 
+  # Favorite associations
+  has_many :user_favorites, dependent: :destroy
+  has_many :favorite_products, through: :user_favorites, source: :topup_product
+
   # Validations
   validates :wallet_address, presence: true, uniqueness: true
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true, uniqueness: true
@@ -71,6 +75,11 @@ class User < ApplicationRecord
 
   def clear_auth_code!
     update!(auth_code: nil)
+  end
+
+  # Favorite methods
+  def favorite?(topup_product)
+    user_favorites.exists?(topup_product_id: topup_product.id)
   end
 
   # Referral methods

@@ -31,5 +31,9 @@ module Types
     # Referral mutations
     field :apply_referral_code, mutation: Mutations::Referrals::ApplyReferralCode
     field :claim_earnings, mutation: Mutations::Referrals::ClaimEarnings
+
+    # Favorite mutations
+    field :add_favorite, mutation: Mutations::Favorites::AddFavorite
+    field :remove_favorite, mutation: Mutations::Favorites::RemoveFavorite
   end
 end

@@ -38,5 +38,8 @@ module Types
 
     # Voucher queries
     field :active_vouchers, resolver: Queries::Vouchers::GetActiveVouchers
+
+    # Favorite queries
+    field :my_favorites, resolver: Queries::Favorites::MyFavorites
   end
 end
