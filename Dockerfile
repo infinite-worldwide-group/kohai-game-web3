@@ -35,10 +35,12 @@ COPY . .
 RUN bundle exec bootsnap precompile app/ lib/ || echo "Bootsnap precompilation failed, continuing..."
 
 # Precompiling assets for production without requiring secret RAILS_MASTER_KEY
+# Disable eager loading to avoid loading app code that may require credentials
 RUN SECRET_KEY_BASE=dummy_secret_key_base_for_assets_precompile_only \
     DATABASE_URL=nulldb://localhost/db \
     SKIP_SIDEKIQ_CONFIG=true \
-    ./bin/rails assets:precompile
+    RAILS_FORCE_SSL=false \
+    bundle exec rake assets:precompile RAILS_ENV=production EAGER_LOAD=false
 
 
 # Final stage for app image
