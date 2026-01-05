@@ -37,6 +37,7 @@ RUN bundle exec bootsnap precompile app/ lib/ || echo "Bootsnap precompilation f
 # Precompiling assets for production without requiring secret RAILS_MASTER_KEY
 RUN SECRET_KEY_BASE=dummy_secret_key_base_for_assets_precompile_only \
     DATABASE_URL=nulldb://localhost/db \
+    SKIP_SIDEKIQ_CONFIG=true \
     ./bin/rails assets:precompile
 
 

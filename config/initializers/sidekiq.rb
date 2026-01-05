@@ -3,25 +3,28 @@
 require 'sidekiq'
 require 'sidekiq-cron'
 
-# Sidekiq configuration
-Sidekiq.configure_server do |config|
-  config.redis = {
-    url: ENV.fetch('REDIS_URL', 'redis://localhost:6379/0'),
-    ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE }
-  }
+# Skip Sidekiq configuration during asset precompilation
+unless ENV['SKIP_SIDEKIQ_CONFIG'] == 'true'
+  # Sidekiq configuration
+  Sidekiq.configure_server do |config|
+    config.redis = {
+      url: ENV.fetch('REDIS_URL', 'redis://localhost:6379/0'),
+      ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE }
+    }
 
-  # Load sidekiq-cron schedule
-  schedule_file = 'config/schedule.yml'
+    # Load sidekiq-cron schedule
+    schedule_file = 'config/schedule.yml'
 
-  if File.exist?(schedule_file)
-    Sidekiq::Cron::Job.load_from_hash YAML.load_file(schedule_file)
-    Rails.logger.info 'Sidekiq-cron schedule loaded'
+    if File.exist?(schedule_file)
+      Sidekiq::Cron::Job.load_from_hash YAML.load_file(schedule_file)
+      Rails.logger.info 'Sidekiq-cron schedule loaded'
+    end
   end
-end
 
-Sidekiq.configure_client do |config|
-  config.redis = {
-    url: ENV.fetch('REDIS_URL', 'redis://localhost:6379/0'),
-    ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE }
-  }
+  Sidekiq.configure_client do |config|
+    config.redis = {
+      url: ENV.fetch('REDIS_URL', 'redis://localhost:6379/0'),
+      ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE }
+    }
+  end
 end
