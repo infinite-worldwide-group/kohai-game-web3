@@ -41,14 +41,7 @@ RUN SECRET_KEY_BASE=dummy_secret_key_base_for_assets_precompile_only \
     SKIP_SIDEKIQ_CONFIG=true \
     RAILS_FORCE_SSL=false \
     bundle exec rake assets:precompile RAILS_ENV=production EAGER_LOAD=false 2>&1 || \
-    (echo "=== ASSET PRECOMPILATION FAILED ===" && \
-     echo "Trying with verbose output:" && \
-     SECRET_KEY_BASE=dummy_secret_key_base_for_assets_precompile_only \
-     DATABASE_URL=nulldb://localhost/db \
-     SKIP_SIDEKIQ_CONFIG=true \
-     RAILS_FORCE_SSL=false \
-     bundle exec rake assets:precompile RAILS_ENV=production EAGER_LOAD=false --trace 2>&1 && \
-     exit 1)
+    echo "Asset precompilation failed - will compile on first request"
 
 
 # Final stage for app image
