@@ -22,7 +22,8 @@ unless ENV['SKIP_SIDEKIQ_CONFIG'] == 'true'
               %r{\A(https?://(?:.+\.)?#{web_url}(:\d+)?)\z},
               %r{\A(https?://(?:.+\.)?#{iwg_url}(:\d+)?)\z},
               %r{\A(http?://(?:.+\.)?192.168.0.131:3002(:\d+)?)\z},
-              %r{\A(http?://(?:.+\.)?localhost:3002(:\d+)?)\z}
+              %r{\A(http?://(?:.+\.)?localhost:3002(:\d+)?)\z},
+              %r{\A(http?://(?:.+\.)?localhost:3003(:\d+)?)\z}
 
       resource '*',
                headers: :any,
