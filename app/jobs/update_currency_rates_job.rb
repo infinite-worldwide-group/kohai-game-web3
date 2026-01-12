@@ -66,6 +66,7 @@ class UpdateCurrencyRatesJob < ApplicationJob
     uri = URI(EXCHANGE_RATE_API_URL)
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = true
+    http.verify_mode = OpenSSL::SSL::VERIFY_NONE
     http.open_timeout = 10
     http.read_timeout = 15
 
@@ -100,10 +101,16 @@ class UpdateCurrencyRatesJob < ApplicationJob
   # Backup API if primary fails (CoinGecko or frankfurter.app)
   def fallback_to_backup_api
     Rails.logger.info "Trying backup API (Frankfurter)..."
-    
+
     uri = URI('https://api.frankfurter.app/latest?from=USD')
-    response = Net::HTTP.get(uri)
-    data = JSON.parse(response)
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = true
+    http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+    http.open_timeout = 10
+    http.read_timeout = 15
+
+    response = http.get(uri.request_uri)
+    data = JSON.parse(response.body)
     
     rates = data['rates']
     Rails.logger.info "Fetched #{rates.keys.count} rates from backup API"

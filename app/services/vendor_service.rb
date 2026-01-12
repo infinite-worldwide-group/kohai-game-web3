@@ -155,6 +155,9 @@ module VendorService
 
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = (uri.scheme == 'https')
+    if http.use_ssl?
+      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+    end
     http.open_timeout = 5
     http.read_timeout = 20
     http.write_timeout = 10 if http.respond_to?(:write_timeout)
@@ -182,6 +185,9 @@ module VendorService
 
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = (uri.scheme == 'https')
+    if http.use_ssl?
+      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+    end
     http.open_timeout = 5
     http.read_timeout = 20
     http.write_timeout = 10 if http.respond_to?(:write_timeout)

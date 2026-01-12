@@ -16,7 +16,7 @@ class TopupProduct < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
 
   after_update :update_user_input
-  #after_create: :update_product_items
+  after_create: :update_product_items
   # Callbacks
   before_validation :generate_slug, if: -> { slug.blank? && title.present? }
 

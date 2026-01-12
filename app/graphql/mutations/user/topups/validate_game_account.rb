@@ -17,8 +17,8 @@ module Mutations
           return respond_single_error('Product not found') unless topup_product.present?
 
           response = ::VendorService.validate_game_account(
-            topup_product: topup_product,
-            user_input: input[:user_inputs]
+            product_id: topup_product.origin_id,
+            user_data: input[:user_inputs]
           )
 
           unless response[:data].present? && response[:data][:ign].present?

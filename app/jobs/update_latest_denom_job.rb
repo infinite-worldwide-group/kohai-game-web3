@@ -80,7 +80,8 @@ class UpdateLatestDenomJob < ApplicationJob
 
       if item["logoUrl"].present?
         begin
-          file = URI.open(item["logoUrl"])
+          require 'open-uri'
+          file = URI.parse(item["logoUrl"]).open(ssl_verify_mode: OpenSSL::SSL::VERIFY_NONE)
           extension = file.content_type.split('/').last
           prod.logo.attach(io: file, filename: "logo_#{code}.#{extension}")
           Rails.logger.info "Attached logo for product #{code}"
