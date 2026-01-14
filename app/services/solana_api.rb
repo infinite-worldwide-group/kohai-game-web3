@@ -72,6 +72,7 @@ module SolanaApi
 
     https = Net::HTTP.new(uri.host, uri.port)
     https.use_ssl = true
+    https.verify_mode = OpenSSL::SSL::VERIFY_NONE
 
     request = Net::HTTP::Post.new(uri.path.empty? ? "/" : uri.path)
 
@@ -91,7 +92,7 @@ module SolanaApi
       JSON.parse(response.body)
     end
   end
-  
+
   def send_request_post(url, path, body = nil)
     merge_url = url + path
     uri = URI("#{merge_url}")
@@ -100,6 +101,7 @@ module SolanaApi
 
     https = Net::HTTP.new(uri.host, uri.port)
     https.use_ssl = true
+    https.verify_mode = OpenSSL::SSL::VERIFY_NONE
 
     request = Net::HTTP::Post.new(uri.path.empty? ? "/" : uri.path)
     request['Content-Type'] = 'application/json'
@@ -120,12 +122,12 @@ module SolanaApi
   end
 
   def send_request_post_inquiry(url, path, body = nil)
-
     merge_url = url + path
     uri = URI("#{merge_url}")
 
     https = Net::HTTP.new(uri.host, uri.port)
     https.use_ssl = true
+    https.verify_mode = OpenSSL::SSL::VERIFY_NONE
 
     request = Net::HTTP::Post.new(uri.path.empty? ? "/" : uri.path)
 
