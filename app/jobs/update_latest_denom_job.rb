@@ -43,6 +43,7 @@ class UpdateLatestDenomJob < ApplicationJob
       prod.logo_url = item["logoUrl"] if item["logoUrl"].present?
       prod.avatar_url = item["profilePictureUrl"] if item["profilePictureUrl"].present?
       prod.publisher_logo_url = item["publisherLogoUrl"] if item["publisherLogoUrl"].present?
+      prod.ordering = item["ordering"] if item["ordering"].present?
 
       unless prod.save
         # Handle slug uniqueness conflicts
