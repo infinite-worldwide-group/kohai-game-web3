@@ -11,13 +11,13 @@
 unless ENV['SKIP_SIDEKIQ_CONFIG'] == 'true'
   Rails.application.config.middleware.insert_before 0, Rack::Cors do
     allow do
-      # Use default values if secrets are not available
-      frontend_url = Rails.application.secrets[:frontend_url]
-      admin_url = Rails.application.secrets[:admin_url]
-      web_url = Rails.application.secrets[:web_url]
-      iwg_url = Rails.application.secrets[:iwg_url]
-      store_url = Rails.application.secrets[:store_url]
-      prod_url = Rails.application.secrets[:prod_url]
+      # Use environment variables for CORS origins
+      frontend_url = ENV["FRONTEND_URL"]
+      admin_url = ENV["ADMIN_URL"]
+      web_url = ENV["WEB_URL"]
+      iwg_url = ENV["IWG_URL"]
+      store_url = ENV["STORE_URL"]
+      prod_url = ENV["PROD_URL"]
       origins %r{\A(https?://(?:.+\.)?#{frontend_url}(:\d+)?)\z},
               %r{\A(https?://(?:.+\.)?#{admin_url}(:\d+)?)\z},
               %r{\A(https?://(?:.+\.)?#{web_url}(:\d+)?)\z},
