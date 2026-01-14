@@ -17,7 +17,7 @@ unless ENV['SKIP_SIDEKIQ_CONFIG'] == 'true'
       web_url = Rails.application.secrets[:web_url] || 'example.com'
       iwg_url = Rails.application.secrets[:iwg_url] || 'example.com'
       store_url = Rails.application.secrets[:store_url] || 'kohai-store-web3.vercel.app'
-
+      store_url = Rails.application.secrets[:prod_url] 
       origins %r{\A(https?://(?:.+\.)?#{frontend_url}(:\d+)?)\z},
               %r{\A(https?://(?:.+\.)?#{admin_url}(:\d+)?)\z},
               %r{\A(https?://(?:.+\.)?#{web_url}(:\d+)?)\z},
