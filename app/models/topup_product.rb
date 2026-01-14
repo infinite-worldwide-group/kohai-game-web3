@@ -89,7 +89,7 @@ class TopupProduct < ApplicationRecord
       item = topup_product_items.find_or_initialize_by(origin_id: item_data["id"].to_s)
 
       item.name  = item_data["name"] || item_data["title"] || "Item #{item.origin_id}"
-      item.price = item_data["price"] if item_data["price"].present?
+      item.price = item_data["retailPrice"] if item_data["retailPrice"].present?
       item.icon  = item_data["icon"]  if item_data["icon"].present?
       item.active = true
 

@@ -47,8 +47,8 @@ module OrderService
     # Build callback URL
     callback_url = "https://#{ENV.fetch('DEFAULT_URL')}/api/vendor/callback"
 
-    # Get price in USDT from order
-    price_usdt = order.crypto_amount
+    # Get price from order (in original currency)
+    price = order.amount
 
     begin
       # Call VendorService to create order
@@ -58,7 +58,7 @@ module OrderService
         user_input: order.user_data,
         partner_order_id: order.order_number,
         callback_url: callback_url,
-        price_usdt: price_usdt
+        price_usdt: price
       )
 
       # Check if order was created successfully
