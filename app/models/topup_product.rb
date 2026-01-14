@@ -13,6 +13,7 @@ class TopupProduct < ApplicationRecord
   scope :by_category, ->(category) { where(category: category) }
   scope :featured, -> { where(featured: true) }
   scope :by_priority, -> { order(featured: :desc, created_at: :desc) }
+  scope :by_ordering, -> { order(Arel.sql("ordering ASC NULLS LAST")) }
   scope :recent, -> { order(created_at: :desc) }
 
   after_update :update_user_input

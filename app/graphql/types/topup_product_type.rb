@@ -21,6 +21,7 @@ module Types
     field :country_codes, [String], null: false
     field :user_input, GraphQL::Types::JSON, null: true
     field :vendor_id, ID, null: true
+    field :ordering, String, null: true
     field :active, Boolean, null: false
     field :created_at, GraphQL::Types::ISO8601DateTime, null: false
     field :updated_at, GraphQL::Types::ISO8601DateTime, null: false

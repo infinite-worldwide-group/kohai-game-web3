@@ -15,7 +15,7 @@ module Queries
       argument :for_store, Boolean, required: false
       argument :genre, String, required: false
       argument :featured_only, Boolean, required: false, description: "Show only featured/priority products"
-      argument :sort_by, String, required: false, default_value: "priority", description: "Sort by: priority, recent, title"
+      argument :sort_by, String, required: false, default_value: "priority", description: "Sort by: priority, recent, title, ordering"
 
       def resolve(category_id: nil, page: 1, per_page: 20, search: nil, country_code: nil, for_store: nil, genre: nil, featured_only: false, sort_by: "priority")
         products = ::TopupProduct.active
@@ -46,6 +46,8 @@ module Queries
           products = products.recent
         when "title"
           products = products.order(:title)
+        when "ordering"
+          products = products.by_ordering
         else
           products = products.by_priority  # Default to priority
         end
