@@ -58,3 +58,4 @@
 *.pem
 *.key
 secrets.yml
+.env
