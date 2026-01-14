@@ -12,20 +12,17 @@ unless ENV['SKIP_SIDEKIQ_CONFIG'] == 'true'
   Rails.application.config.middleware.insert_before 0, Rack::Cors do
     allow do
       # Use default values if secrets are not available
-      frontend_url = Rails.application.secrets[:frontend_url] || 'example.com'
-      admin_url = Rails.application.secrets[:admin_url] || 'example.com'
-      web_url = Rails.application.secrets[:web_url] || 'example.com'
-      iwg_url = Rails.application.secrets[:iwg_url] || 'example.com'
-      store_url = Rails.application.secrets[:store_url] || 'kohai-store-web3.vercel.app'
-      store_url = Rails.application.secrets[:prod_url] 
+      frontend_url = Rails.application.secrets[:frontend_url]
+      admin_url = Rails.application.secrets[:admin_url]
+      web_url = Rails.application.secrets[:web_url]
+      iwg_url = Rails.application.secrets[:iwg_url]
+      store_url = Rails.application.secrets[:store_url] 
+      prod_url = Rails.application.secrets[:prod_url] 
       origins %r{\A(https?://(?:.+\.)?#{frontend_url}(:\d+)?)\z},
               %r{\A(https?://(?:.+\.)?#{admin_url}(:\d+)?)\z},
               %r{\A(https?://(?:.+\.)?#{web_url}(:\d+)?)\z},
               %r{\A(https?://(?:.+\.)?#{iwg_url}(:\d+)?)\z},
-              %r{\A(https?://(?:.+\.)?#{store_url}(:\d+)?)\z},
-              %r{\A(http?://(?:.+\.)?192.168.0.131:3002(:\d+)?)\z},
-              %r{\A(http?://(?:.+\.)?localhost:3002(:\d+)?)\z},
-              %r{\A(http?://(?:.+\.)?localhost:3003(:\d+)?)\z}
+              %r{\A(https?://(?:.+\.)?#{store_url}(:\d+)?)\z}
 
       resource '*',
                headers: :any,
