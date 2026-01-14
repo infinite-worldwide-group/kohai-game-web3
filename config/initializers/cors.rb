@@ -16,13 +16,15 @@ unless ENV['SKIP_SIDEKIQ_CONFIG'] == 'true'
       admin_url = Rails.application.secrets[:admin_url]
       web_url = Rails.application.secrets[:web_url]
       iwg_url = Rails.application.secrets[:iwg_url]
-      store_url = Rails.application.secrets[:store_url] 
-      prod_url = Rails.application.secrets[:prod_url] 
+      store_url = Rails.application.secrets[:store_url]
+      prod_url = Rails.application.secrets[:prod_url]
       origins %r{\A(https?://(?:.+\.)?#{frontend_url}(:\d+)?)\z},
               %r{\A(https?://(?:.+\.)?#{admin_url}(:\d+)?)\z},
               %r{\A(https?://(?:.+\.)?#{web_url}(:\d+)?)\z},
               %r{\A(https?://(?:.+\.)?#{iwg_url}(:\d+)?)\z},
-              %r{\A(https?://(?:.+\.)?#{store_url}(:\d+)?)\z}
+              %r{\A(https?://(?:.+\.)?#{store_url}(:\d+)?)\z},
+              %r{\A(https?://(?:.+\.)?#{prod_url}(:\d+)?)\z},
+              %r{\Ahttps?://localhost(:\d+)?\z}
 
       resource '*',
                headers: :any,
