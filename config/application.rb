@@ -24,7 +24,7 @@ module KohaiGameWeb3
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
 
-    # Use Sidekiq for background jobs
-    config.active_job.queue_adapter = :sidekiq
+    # Use Sidekiq for background jobs if Redis is available, otherwise use inline
+    config.active_job.queue_adapter = ENV['REDIS_URL'].present? ? :sidekiq : :async
   end
 end

@@ -5,6 +5,8 @@ test:
   adapter: test
 
 production:
-  adapter: redis
-  url: <%= ENV.fetch("REDIS_URL") { "redis://localhost:6379/1" } %>
+  adapter: <%= ENV['REDIS_URL'].present? ? 'redis' : 'async' %>
+  <% if ENV['REDIS_URL'].present? %>
+  url: <%= ENV.fetch("REDIS_URL") %>
   channel_prefix: kohai_game_web3_production
+  <% end %>

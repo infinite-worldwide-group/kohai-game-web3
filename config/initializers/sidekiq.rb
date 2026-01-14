@@ -3,8 +3,8 @@
 require 'sidekiq'
 require 'sidekiq-cron'
 
-# Skip Sidekiq configuration during asset precompilation
-unless ENV['SKIP_SIDEKIQ_CONFIG'] == 'true'
+# Skip Sidekiq configuration during asset precompilation or if Redis is not available
+unless ENV['SKIP_SIDEKIQ_CONFIG'] == 'true' || ENV['REDIS_URL'].blank?
   # Sidekiq configuration
   Sidekiq.configure_server do |config|
     config.redis = {
