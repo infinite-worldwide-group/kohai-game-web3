@@ -27,6 +27,14 @@ module Mutations
           raise GraphQL::ExecutionError, "Product is not available"
         end
 
+        # Validate payment currency - only USDT is accepted
+        unless crypto_currency.to_s.upcase == 'USDT'
+          return {
+            order: nil,
+            errors: ["Only USDT payments are accepted. Please pay with USDT."]
+          }
+        end
+
         # Check vendor balance - block purchase if balance < 100
         begin
           balance_response = VendorService.get_balance
@@ -177,9 +185,60 @@ module Mutations
         # Get platform wallet address
         platform_wallet = ENV.fetch('PLATFORM_WALLET_ADDRESS')
 
+        # Generate order number early for vendor reference
+        generated_order_number = "ORD-#{Time.now.to_i}-#{SecureRandom.hex(4).upcase}"
+        callback_url = "https://#{ENV.fetch('DEFAULT_URL')}/api/vendor/callback"
+
+        # Get user input data for vendor
+        vendor_user_input = user_data.presence || game_account&.user_data || {}
+
+        # Call vendor BEFORE creating order - only create order if vendor succeeds
+        vendor_invoice_id = nil
+        vendor_metadata = nil
+        begin
+          Rails.logger.info "Calling vendor to create order: #{generated_order_number}"
+          vendor_response = VendorService.create_order(
+            product_id: topup_product.origin_id,
+            product_item_id: product_item.origin_id,
+            user_input: vendor_user_input,
+            partner_order_id: generated_order_number,
+            callback_url: callback_url,
+            price_usdt: final_crypto_amount
+          )
+
+          # Check if vendor order succeeded
+          is_success = vendor_response['success'] == true ||
+                       vendor_response['status']&.downcase == 'success' ||
+                       vendor_response['statusCode'].to_i.between?(200, 299) ||
+                       vendor_response['message'].to_s.downcase.include?('successful')
+
+          unless is_success
+            error_msg = vendor_response['message'] || vendor_response['error'] || 'Vendor order failed'
+            Rails.logger.error "Vendor order creation failed: #{error_msg}"
+            return {
+              order: nil,
+              errors: [error_msg]
+            }
+          end
+
+          # Extract invoice/reference ID from response
+          vendor_invoice_id = vendor_response['orderId'] || vendor_response['order_id'] ||
+                              vendor_response['invoiceId'] || vendor_response['reference']
+          vendor_metadata = vendor_response.to_json
+
+          Rails.logger.info "Vendor order created successfully: invoice_id=#{vendor_invoice_id}"
+
+        rescue => e
+          Rails.logger.error "Vendor order creation failed: #{e.message}"
+          return {
+            order: nil,
+            errors: ["Unable to process order. Please try again later."]
+          }
+        end
+
         Rails.logger.info "Creating order: tx=#{transaction_signature[0..8]}... amount=#{final_crypto_amount} #{crypto_token}"
 
-        # Create order immediately, verify transaction in background after delay
+        # Create order only after vendor succeeds
         order = nil
         ActiveRecord::Base.transaction do
           # Create order
@@ -188,6 +247,8 @@ module Mutations
             topup_product_item: product_item,
             game_account: game_account,
             voucher: selected_voucher,
+            # Use pre-generated order number (already sent to vendor)
+            order_number: generated_order_number,
             # Product price in original currency (e.g., 0.04 MYR)
             amount: final_amount,
             original_amount: original_amount,
@@ -205,7 +266,10 @@ module Mutations
             # Other fields
             order_type: 'topup',
             user_data: user_data,
-            status: 'pending'
+            # Vendor already has the order, set to processing with invoice_id
+            status: 'processing',
+            invoice_id: vendor_invoice_id,
+            metadata: vendor_metadata
           )
 
           # Mark voucher as used if applied
@@ -245,8 +309,8 @@ module Mutations
           )
         end
 
-        # Process the order to trigger the purchase
-        order.process!
+        # Note: order.process! is NOT called because vendor purchase was done BEFORE creating the order.
+        # The order is already in 'processing' status with invoice_id set.
 
         # Enqueue transaction verification after 10 seconds
         # This gives the blockchain RPC time to index the transaction
