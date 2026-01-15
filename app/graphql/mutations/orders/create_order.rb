@@ -35,24 +35,6 @@ module Mutations
           }
         end
 
-        # Check vendor balance - block purchase if balance < 100
-        begin
-          balance_response = VendorService.get_balance
-          vendor_balance = balance_response['balance'] || balance_response['credit'] || balance_response.dig('data', 'balance') || 0
-          if vendor_balance.to_f < 100
-            return {
-              order: nil,
-              errors: ["Our products is currently unavailable. Please try again later."]
-            }
-          end
-        rescue => e
-          Rails.logger.error "Vendor balance check failed: #{e.message}"
-          return {
-            order: nil,
-            errors: ["Our products is currently unavailable. Please try again later."]
-          }
-        end
-
         # Get topup product for validation
         topup_product = product_item.topup_product
 
@@ -232,7 +214,7 @@ module Mutations
           Rails.logger.error "Vendor order creation failed: #{e.message}"
           return {
             order: nil,
-            errors: ["Unable to process order. Please try again later."]
+            errors: [e.message]
           }
         end
 
