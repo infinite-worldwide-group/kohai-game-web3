@@ -49,6 +49,8 @@ class GameAccount < ApplicationRecord
     in_game_name.presence || account_id
   end
 
+  class MaintenanceError < StandardError; end
+
   # Validate game account with vendor
   def validate_with_vendor!
     return false unless topup_product&.code.present?
@@ -57,6 +59,11 @@ class GameAccount < ApplicationRecord
       product_id: topup_product.code,
       user_data: user_data || {}
     )
+
+    # Check for maintenance/unavailable status (statusCode: 422, error: "Maintenance")
+    if response.is_a?(Hash) && (response['statusCode'] == 422 || response['error'] == 'Maintenance')
+      raise MaintenanceError, response['message'] || "This product is currently unavailable. Please try again later."
+    end
 
     if response && response["data"] && response["data"]["ign"].present?
       update!(
@@ -67,6 +74,8 @@ class GameAccount < ApplicationRecord
     else
       false
     end
+  rescue MaintenanceError
+    raise # Re-raise maintenance errors to be handled by caller
   rescue => e
     Rails.logger.error "Failed to validate game account #{id}: #{e.message}"
     false

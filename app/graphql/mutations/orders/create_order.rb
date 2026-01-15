@@ -41,13 +41,50 @@ module Mutations
 
           # Auto-verify game account if not already approved
           unless game_account.approved?
-            validation_success = game_account.validate_with_vendor!
-            game_account.reload
+            begin
+              validation_success = game_account.validate_with_vendor!
+              game_account.reload
 
-            unless validation_success && game_account.approved?
+              unless validation_success && game_account.approved?
+                return {
+                  order: nil,
+                  errors: ["Game account verification failed. Please verify your game account details."]
+                }
+              end
+            rescue GameAccount::MaintenanceError => e
               return {
                 order: nil,
-                errors: ["Game account verification failed. Please verify your game account details."]
+                errors: [e.message]
+              }
+            end
+          end
+        elsif user_data.present?
+          # Validate game account with vendor when user_data is provided directly
+          topup_product = product_item.topup_product
+          if topup_product&.origin_id.present?
+            begin
+              validation_response = VendorService.validate_game_account(
+                product_id: topup_product.origin_id,
+                user_data: user_data
+              )
+              # Check for maintenance/unavailable status (statusCode: 422, error: "Maintenance")
+              if validation_response.is_a?(Hash) && (validation_response['statusCode'] == 422 || validation_response['error'] == 'Maintenance')
+                return {
+                  order: nil,
+                  errors: [validation_response['message'] || "This product is currently unavailable. Please try again later."]
+                }
+              end
+              unless validation_response && validation_response["data"] && validation_response["data"]["ign"].present?
+                return {
+                  order: nil,
+                  errors: ["Game account verification failed. Please verify your game account details."]
+                }
+              end
+            rescue => e
+              Rails.logger.error "Game account validation failed: #{e.message}"
+              return {
+                order: nil,
+                errors: ["Game account verification failed. Please try again."]
               }
             end
           end
