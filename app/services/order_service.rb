@@ -62,7 +62,17 @@ module OrderService
       )
 
       # Check if order was created successfully
-      if response['success'] || response['status'] == 'success'
+      # Vendor may return success in different ways:
+      # - success: true
+      # - status: 'success'
+      # - statusCode: 200 (or 2xx)
+      # - message containing 'successful'
+      is_success = response['success'] == true ||
+                   response['status']&.downcase == 'success' ||
+                   response['statusCode'].to_i.between?(200, 299) ||
+                   response['message'].to_s.downcase.include?('successful')
+
+      if is_success
         # Extract invoice/reference ID from response
         invoice_id = response['orderId'] || response['order_id'] || response['invoiceId'] || response['reference']
 
@@ -73,7 +83,9 @@ module OrderService
           )
           return true
         else
-          return fail_order(order, "Missing invoice ID from vendor response")
+          # Success but no invoice ID - still consider it successful, store metadata
+          order.update!(metadata: response.to_json)
+          return true
         end
       else
         error_message = response['message'] || response['error'] || 'Order creation failed'
