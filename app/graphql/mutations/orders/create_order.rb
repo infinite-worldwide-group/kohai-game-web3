@@ -27,6 +27,27 @@ module Mutations
           raise GraphQL::ExecutionError, "Product is not available"
         end
 
+        # Check vendor balance - block purchase if balance < 100
+        begin
+          balance_response = VendorService.get_balance
+          vendor_balance = balance_response['balance'] || balance_response['credit'] || balance_response.dig('data', 'balance') || 0
+          if vendor_balance.to_f < 100
+            return {
+              order: nil,
+              errors: ["Our products is currently unavailable. Please try again later."]
+            }
+          end
+        rescue => e
+          Rails.logger.error "Vendor balance check failed: #{e.message}"
+          return {
+            order: nil,
+            errors: ["Our products is currently unavailable. Please try again later."]
+          }
+        end
+
+        # Get topup product for validation
+        topup_product = product_item.topup_product
+
         # Validate and auto-verify game account if provided
         game_account = nil
         if game_account_id.present?
@@ -41,13 +62,60 @@ module Mutations
 
           # Auto-verify game account if not already approved
           unless game_account.approved?
-            validation_success = game_account.validate_with_vendor!
-            game_account.reload
-
-            unless validation_success && game_account.approved?
+            begin
+              validation_response = VendorService.validate_game_account(
+                product_id: topup_product&.origin_id || topup_product&.code,
+                user_data: game_account.user_data || {}
+              )
+              # Check for maintenance error
+              if validation_response.is_a?(Hash) && (validation_response['statusCode'] == 422 || validation_response['error'] == 'Maintenance')
+                return {
+                  order: nil,
+                  errors: [validation_response['message'] || "This product is currently unavailable. Please try again later."]
+                }
+              end
+              if validation_response && validation_response["data"] && validation_response["data"]["ign"].present?
+                game_account.update!(approve: true, in_game_name: validation_response["data"]["ign"])
+              else
+                return {
+                  order: nil,
+                  errors: ["Game account verification failed. Please verify your game account details."]
+                }
+              end
+            rescue => e
+              Rails.logger.error "Game account validation failed: #{e.message}"
               return {
                 order: nil,
-                errors: ["Game account verification failed. Please verify your game account details."]
+                errors: ["Game account verification failed. Please try again."]
+              }
+            end
+          end
+        elsif user_data.present?
+          # Validate game account with vendor when user_data is provided directly
+          if topup_product&.origin_id.present?
+            begin
+              validation_response = VendorService.validate_game_account(
+                product_id: topup_product.origin_id,
+                user_data: user_data
+              )
+              # Check for maintenance error
+              if validation_response.is_a?(Hash) && (validation_response['statusCode'] == 422 || validation_response['error'] == 'Maintenance')
+                return {
+                  order: nil,
+                  errors: [validation_response['message'] || "This product is currently unavailable. Please try again later."]
+                }
+              end
+              unless validation_response && validation_response["data"] && validation_response["data"]["ign"].present?
+                return {
+                  order: nil,
+                  errors: ["Game account verification failed. Please verify your game account details."]
+                }
+              end
+            rescue => e
+              Rails.logger.error "Game account validation failed: #{e.message}"
+              return {
+                order: nil,
+                errors: ["Game account verification failed. Please try again."]
               }
             end
           end
