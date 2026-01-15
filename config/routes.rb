@@ -2,6 +2,11 @@ Rails.application.routes.draw do
   # GraphQL endpoint
   post "/graphql", to: "graphql#execute"
 
+  # Vendor callback endpoint
+  namespace :api do
+    post "vendor/callback", to: "vendor#callback"
+  end
+
   # GraphiQL IDE (only in development)
   if Rails.env.development?
     mount GraphiQL::Rails::Engine, at: "/graphiql", graphql_path: "/graphql"
