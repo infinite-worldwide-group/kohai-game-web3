@@ -245,6 +245,9 @@ module Mutations
           )
         end
 
+        # Process the order to trigger the purchase
+        order.process!
+
         # Enqueue transaction verification after 10 seconds
         # This gives the blockchain RPC time to index the transaction
         VerifyTransactionJob.set(wait: 10.seconds).perform_later(order.id)
