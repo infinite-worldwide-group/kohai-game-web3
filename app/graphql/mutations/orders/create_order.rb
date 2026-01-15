@@ -185,7 +185,7 @@ module Mutations
             user_input: vendor_user_input,
             partner_order_id: generated_order_number,
             callback_url: callback_url,
-            price_usdt: final_crypto_amount
+            price_usdt: original_amount.to_f  # Send original MYR price to vendor
           )
 
           # Check if vendor order succeeded
