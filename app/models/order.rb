@@ -148,20 +148,24 @@ class Order < ApplicationRecord
   end
 
   def purchase_game_credit
-    # Skip if we've already purchased from vendor (tracking_number is set)
-    return if tracking_number.present?
+    # Use lock to prevent duplicate vendor calls
+    with_lock do
+      # Reload to get latest data and skip if already purchased
+      reload
+      return if tracking_number.present?
 
-    # Only process topup orders that need vendor purchase
-    return unless order_type == 'topup' && topup_product_item.present?
+      # Only process topup orders that need vendor purchase
+      return unless order_type == 'topup' && topup_product_item.present?
 
-    # Validate transaction before proceeding
-    unless validate_transaction
-      fail!
-      return false
+      # Validate transaction before proceeding
+      unless validate_transaction
+        fail!
+        return false
+      end
+
+      # Call vendor service to purchase game credit
+      OrderService.post_purchase(order: self)
     end
-
-    # Call vendor service to purchase game credit
-    OrderService.post_purchase(order: self)
   end
 
   def validate_transaction
