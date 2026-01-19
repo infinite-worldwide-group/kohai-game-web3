@@ -52,7 +52,7 @@ module VendorService
   end
 
 
-  def get_product_items(product_id:)
+  def get_product_items(product_id:, page: 1, per_page: 100)
     secret_key = ENV['VENDOR_SECRET_KEY'].to_s
     merchant_id = ENV['VENDOR_MERCHANT_ID'].to_s
     path = "/merchant-products/#{product_id.to_s}/items"
@@ -60,7 +60,9 @@ module VendorService
     signature = OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'), secret_key, payload)
 
     body = {
-      signature: signature
+      signature: signature,
+      page: page,
+      per_page: per_page
     }
 
     get(ENV['VENDOR_URL'], path, body)

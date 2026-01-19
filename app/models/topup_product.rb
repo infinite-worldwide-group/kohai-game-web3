@@ -67,25 +67,42 @@ class TopupProduct < ApplicationRecord
   end
 
   def update_product_items
-    product_items = VendorService.get_product_items(product_id: code)
+    # Fetch all items with pagination
+    all_vendor_items = []
+    page = 1
+    per_page = 100
 
-    # If API returns no items, deactivate this product
-    if product_items.blank? || product_items["data"].blank? || product_items["data"]["items"].blank?
-      update(is_active: false)
-      Rails.logger.warn "No items found from vendor for TopupProduct #{id} (code: #{code})"
-      return false
+    loop do
+      product_items = VendorService.get_product_items(product_id: code, page: page, per_page: per_page)
+
+      # Check if response is valid
+      if product_items.blank? || product_items["data"].blank? || product_items["data"]["items"].blank?
+        break if page > 1  # We've fetched previous pages, just no more items
+
+        # First page returned no items - deactivate product
+        update(is_active: false)
+        Rails.logger.warn "No items found from vendor for TopupProduct #{id} (code: #{code})"
+        return false
+      end
+
+      batch = product_items["data"]["items"]
+      all_vendor_items.concat(batch)
+      Rails.logger.info "Fetched page #{page}: #{batch.size} items for TopupProduct #{id} (total: #{all_vendor_items.size})"
+
+      # Break if we got fewer items than requested (last page)
+      break if batch.size < per_page
+
+      page += 1
     end
 
-    vendor_items = product_items["data"]["items"]
+    # Collect vendor item IDs
+    vendor_item_ids = all_vendor_items.map { |d| d["id"].to_s }
 
-    # 🔥 NEW — Collect vendor item IDs
-    vendor_item_ids = vendor_items.map { |d| d["id"].to_s }
-
-    # 🔥 NEW — Deactivate local items not returned by vendor
+    # Deactivate local items not returned by vendor
     topup_product_items.where.not(origin_id: vendor_item_ids).update_all(active: false)
 
     # Process vendor items
-    vendor_items.each do |item_data|
+    all_vendor_items.each do |item_data|
       item = topup_product_items.find_or_initialize_by(origin_id: item_data["id"].to_s)
 
       item.name  = item_data["name"] || item_data["title"] || "Item #{item.origin_id}"
@@ -98,7 +115,9 @@ class TopupProduct < ApplicationRecord
       end
     end
 
-    # 🔥 Activate product only if it has at least 1 active item
+    Rails.logger.info "Total items synced for TopupProduct #{id}: #{all_vendor_items.size}"
+
+    # Activate product only if it has at least 1 active item
     if topup_product_items.where(active: true).exists?
       update(is_active: true)
     else
