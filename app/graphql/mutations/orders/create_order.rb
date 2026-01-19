@@ -247,7 +247,7 @@ module Mutations
 
         # Now call vendor AFTER order is created
         # If vendor fails, order is still recorded with 'failed' status
-        vendor_invoice_id = nil
+        vendor_tracking_number = nil
         vendor_metadata = nil
         vendor_error = nil
 
@@ -269,19 +269,37 @@ module Mutations
                        vendor_response['message'].to_s.downcase.include?('successful')
 
           if is_success
-            # Extract invoice/reference ID from response
-            vendor_invoice_id = vendor_response['orderId'] || vendor_response['order_id'] ||
-                                vendor_response['invoiceId'] || vendor_response['reference']
+            # Extract tracking_number from vendor response (vendor's orderId)
+            vendor_tracking_number = vendor_response['orderId']
             vendor_metadata = vendor_response.to_json
-            Rails.logger.info "Vendor order created successfully: invoice_id=#{vendor_invoice_id}"
+            Rails.logger.info "Vendor order created successfully: tracking_number=#{vendor_tracking_number}"
           else
             vendor_error = vendor_response['message'] || vendor_response['error'] || 'Vendor order failed'
             Rails.logger.error "Vendor order creation failed: #{vendor_error}"
           end
 
         rescue => e
-          vendor_error = e.message
-          Rails.logger.error "Vendor order creation failed: #{e.message}"
+          error_message = e.message
+          Rails.logger.error "Vendor order creation failed: #{error_message}"
+
+          # Check if error indicates order already exists on vendor side
+          if error_message.downcase.include?('duplicate') || error_message.downcase.include?('already exists')
+            Rails.logger.info "Order #{generated_order_number} already exists on vendor - treating as success"
+
+            # Check if we have duplicate orders locally with this order number
+            local_orders_count = ::Order.where(order_number: generated_order_number).count
+            if local_orders_count > 1
+              vendor_error = "Duplicate order detected locally. Please contact support."
+              Rails.logger.error "Found #{local_orders_count} orders with order_number #{generated_order_number}"
+            else
+              # Order exists on vendor side but we don't have invoice_id
+              # Mark as processing and let vendor callback update the status
+              Rails.logger.info "Order #{generated_order_number} will be updated via vendor callback"
+              # Don't set vendor_error - proceed to processing status
+            end
+          else
+            vendor_error = error_message
+          end
         end
 
         # Update order based on vendor result
@@ -297,10 +315,10 @@ module Mutations
             errors: [vendor_error]
           }
         else
-          # Vendor succeeded - update invoice_id first, then transition to processing
-          # The process! callback (purchase_game_credit) will skip since invoice_id is set
+          # Vendor succeeded - update tracking_number first, then transition to processing
+          # The process! callback (purchase_game_credit) will skip since tracking_number is set
           order.update!(
-            invoice_id: vendor_invoice_id,
+            tracking_number: vendor_tracking_number,
             metadata: vendor_metadata
           )
           order.process!  # Use AASM event to transition to processing state

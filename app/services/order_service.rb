@@ -73,17 +73,17 @@ module OrderService
                    response['message'].to_s.downcase.include?('successful')
 
       if is_success
-        # Extract invoice/reference ID from response
-        invoice_id = response['orderId'] || response['order_id'] || response['invoiceId'] || response['reference']
+        # Extract tracking_number from response (vendor's orderId)
+        tracking_number = response['orderId']
 
-        if invoice_id.present?
+        if tracking_number.present?
           order.update!(
-            invoice_id: invoice_id,
+            tracking_number: tracking_number,
             metadata: response.to_json
           )
           return true
         else
-          # Success but no invoice ID - still consider it successful, store metadata
+          # Success but no tracking_number - still consider it successful, store metadata
           order.update!(metadata: response.to_json)
           return true
         end
@@ -100,11 +100,11 @@ module OrderService
 
   def check_order(order)
     return return_respond("invalid", "Please check only processing orders") unless order.processing?
-    return return_respond("invalid", "Couldn't find invoice ID") unless order.invoice_id.present?
+    return return_respond("invalid", "Couldn't find tracking number") unless order.tracking_number.present?
 
     begin
       # Call VendorService to check order status
-      response = VendorService.check_order_detail(order.invoice_id)
+      response = VendorService.check_order_detail(order.order_number, order.tracking_number)
 
       # Parse the response status
       status = response['status']&.downcase

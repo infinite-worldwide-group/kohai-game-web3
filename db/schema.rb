@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_12_18_161626) do
+ActiveRecord::Schema[7.1].define(version: 2026_01_19_122221) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -130,6 +130,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_18_161626) do
     t.decimal "voucher_discount_percent", precision: 5, scale: 2
     t.decimal "voucher_discount_amount", precision: 18, scale: 8
     t.string "final_discount_source"
+    t.string "tracking_number"
     t.index ["created_at"], name: "index_orders_on_created_at"
     t.index ["fiat_currency_id"], name: "index_orders_on_fiat_currency_id"
     t.index ["game_account_id"], name: "index_orders_on_game_account_id"
@@ -242,6 +243,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_18_161626) do
     t.integer "vendor_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "ordering"
     t.index ["category"], name: "index_topup_products_on_category"
     t.index ["code"], name: "index_topup_products_on_code"
     t.index ["featured"], name: "index_topup_products_on_featured"

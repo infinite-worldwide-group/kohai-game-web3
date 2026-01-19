@@ -123,7 +123,7 @@ module VendorService
     post(ENV['VENDOR_URL'], path, body)
   end
 
-  def check_order_detail(reference_id, invoice_id)
+  def check_order_detail(reference_id, tracking_number)
     secret_key = ENV['VENDOR_SECRET_KEY'].to_s
     merchant_id = ENV['VENDOR_MERCHANT_ID'].to_s
     path = "/merchant-order/#{reference_id}"
@@ -133,7 +133,7 @@ module VendorService
     body = {
       signature: signature,
       api_key: ENV['VENDOR_API_KEY'],
-      invoiceId: invoice_id
+      invoiceId: tracking_number
     }
     get(ENV['VENDOR_URL'], path, body)
   end

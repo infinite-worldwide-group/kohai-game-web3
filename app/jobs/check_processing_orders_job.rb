@@ -9,9 +9,9 @@ class CheckProcessingOrdersJob < ApplicationJob
   def perform
     Rails.logger.info("CheckProcessingOrdersJob: Starting to check processing orders")
 
-    # Find all orders in processing state that have invoice_id and crypto_transaction
+    # Find all orders in processing state that have tracking_number and crypto_transaction
     processing_orders = Order.where(status: 'processing')
-                              .where.not(invoice_id: nil)
+                              .where.not(tracking_number: nil)
                               .joins(:crypto_transaction)
                               .order(updated_at: :asc)
                               .limit(50) # Process max 50 orders at a time

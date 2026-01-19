@@ -32,11 +32,11 @@ module Api
       # Parse callback data
       reference = params[:reference]
       status = params[:status]&.downcase
-      invoice_id = params[:invoiceId]
+      tracking_number = params[:invoiceId]  # Vendor's invoiceId is our tracking_number
       trx_date = params[:trxDate]
       sn = params[:sn]
 
-      Rails.logger.info("Vendor callback received: reference=#{reference}, status=#{status}, invoiceId=#{invoice_id}, sn=#{sn}")
+      Rails.logger.info("Vendor callback received: reference=#{reference}, status=#{status}, tracking=#{tracking_number}, sn=#{sn}")
 
       # Find order by reference (order_number)
       order = Order.find_by(order_number: reference)
@@ -60,9 +60,9 @@ module Api
       begin
         case status
         when 'succeeded', 'success', 'completed'
-          # Update invoice_id and sn if provided
+          # Update tracking_number and sn if provided
           order.update!(
-            invoice_id: invoice_id.presence || order.invoice_id,
+            tracking_number: tracking_number.presence || order.tracking_number,
             metadata: {
               sn: sn,
               trx_date: trx_date,
@@ -74,6 +74,7 @@ module Api
 
         when 'failed', 'error', 'cancelled'
           order.update!(
+            tracking_number: tracking_number.presence || order.tracking_number,
             error_message: "Vendor order #{status}: #{params[:message] || params[:errorMessage] || 'Unknown error'}",
             metadata: {
               sn: sn,
@@ -85,9 +86,9 @@ module Api
           Rails.logger.info("Vendor callback: Order #{reference} marked as failed")
 
         when 'processing', 'pending'
-          # Update invoice_id if provided but keep processing
-          if invoice_id.present?
-            order.update!(invoice_id: invoice_id)
+          # Update tracking_number if provided but keep processing
+          if tracking_number.present?
+            order.update!(tracking_number: tracking_number)
           end
           Rails.logger.info("Vendor callback: Order #{reference} still processing")
 
