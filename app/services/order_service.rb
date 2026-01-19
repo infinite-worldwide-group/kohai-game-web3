@@ -73,8 +73,10 @@ module OrderService
                    response['message'].to_s.downcase.include?('successful')
 
       if is_success
-        # Extract tracking_number from response (vendor's orderId)
-        tracking_number = response['orderId']
+        # Extract tracking_number from response
+        # Vendor returns: data.invoiceId = vendor's order number (use as tracking_number)
+        vendor_data = response['data'] || {}
+        tracking_number = vendor_data['invoiceId'] || response['orderId']
 
         if tracking_number.present?
           order.update!(

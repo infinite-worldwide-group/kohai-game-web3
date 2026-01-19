@@ -269,8 +269,10 @@ module Mutations
                        vendor_response['message'].to_s.downcase.include?('successful')
 
           if is_success
-            # Extract tracking_number from vendor response (vendor's orderId)
-            vendor_tracking_number = vendor_response['orderId']
+            # Extract tracking_number from vendor response
+            # Vendor returns: data.invoiceId = vendor's order number (use as tracking_number)
+            vendor_data = vendor_response['data'] || {}
+            vendor_tracking_number = vendor_data['invoiceId'] || vendor_response['orderId']
             vendor_metadata = vendor_response.to_json
             Rails.logger.info "Vendor order created successfully: tracking_number=#{vendor_tracking_number}"
           else
