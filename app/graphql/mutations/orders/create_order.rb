@@ -174,62 +174,18 @@ module Mutations
         # Get user input data for vendor
         vendor_user_input = user_data.presence || game_account&.user_data || {}
 
-        # Call vendor BEFORE creating order - only create order if vendor succeeds
-        vendor_invoice_id = nil
-        vendor_metadata = nil
-        begin
-          Rails.logger.info "Calling vendor to create order: #{generated_order_number}"
-          vendor_response = VendorService.create_order(
-            product_id: topup_product.origin_id,
-            product_item_id: product_item.origin_id,
-            user_input: vendor_user_input,
-            partner_order_id: generated_order_number,
-            callback_url: callback_url,
-            price_usdt: original_amount.to_f  # Send original MYR price to vendor
-          )
-
-          # Check if vendor order succeeded
-          is_success = vendor_response['success'] == true ||
-                       vendor_response['status']&.downcase == 'success' ||
-                       vendor_response['statusCode'].to_i.between?(200, 299) ||
-                       vendor_response['message'].to_s.downcase.include?('successful')
-
-          unless is_success
-            error_msg = vendor_response['message'] || vendor_response['error'] || 'Vendor order failed'
-            Rails.logger.error "Vendor order creation failed: #{error_msg}"
-            return {
-              order: nil,
-              errors: [error_msg]
-            }
-          end
-
-          # Extract invoice/reference ID from response
-          vendor_invoice_id = vendor_response['orderId'] || vendor_response['order_id'] ||
-                              vendor_response['invoiceId'] || vendor_response['reference']
-          vendor_metadata = vendor_response.to_json
-
-          Rails.logger.info "Vendor order created successfully: invoice_id=#{vendor_invoice_id}"
-
-        rescue => e
-          Rails.logger.error "Vendor order creation failed: #{e.message}"
-          return {
-            order: nil,
-            errors: [e.message]
-          }
-        end
-
         Rails.logger.info "Creating order: tx=#{transaction_signature[0..8]}... amount=#{final_crypto_amount} #{crypto_token}"
 
-        # Create order only after vendor succeeds
+        # Create order FIRST with 'paid' status to record the payment
+        # This ensures we track the order even if vendor fails later
         order = nil
         ActiveRecord::Base.transaction do
-          # Create order
+          # Create order with 'paid' status (payment received but not yet sent to vendor)
           order = ::Order.create!(
             user: current_user,
             topup_product_item: product_item,
             game_account: game_account,
             voucher: selected_voucher,
-            # Use pre-generated order number (already sent to vendor)
             order_number: generated_order_number,
             # Product price in original currency (e.g., 0.04 MYR)
             amount: final_amount,
@@ -248,10 +204,8 @@ module Mutations
             # Other fields
             order_type: 'topup',
             user_data: user_data,
-            # Vendor already has the order, set to processing with invoice_id
-            status: 'processing',
-            invoice_id: vendor_invoice_id,
-            metadata: vendor_metadata
+            # Start with 'paid' status - will be updated after vendor call
+            status: 'paid'
           )
 
           # Mark voucher as used if applied
@@ -291,8 +245,66 @@ module Mutations
           )
         end
 
-        # Note: order.process! is NOT called because vendor purchase was done BEFORE creating the order.
-        # The order is already in 'processing' status with invoice_id set.
+        # Now call vendor AFTER order is created
+        # If vendor fails, order is still recorded with 'failed' status
+        vendor_invoice_id = nil
+        vendor_metadata = nil
+        vendor_error = nil
+
+        begin
+          Rails.logger.info "Calling vendor to create order: #{generated_order_number}"
+          vendor_response = VendorService.create_order(
+            product_id: topup_product.origin_id,
+            product_item_id: product_item.origin_id,
+            user_input: vendor_user_input,
+            partner_order_id: generated_order_number,
+            callback_url: callback_url,
+            price_usdt: original_amount.to_f  # Send original MYR price to vendor
+          )
+
+          # Check if vendor order succeeded
+          is_success = vendor_response['success'] == true ||
+                       vendor_response['status']&.downcase == 'success' ||
+                       vendor_response['statusCode'].to_i.between?(200, 299) ||
+                       vendor_response['message'].to_s.downcase.include?('successful')
+
+          if is_success
+            # Extract invoice/reference ID from response
+            vendor_invoice_id = vendor_response['orderId'] || vendor_response['order_id'] ||
+                                vendor_response['invoiceId'] || vendor_response['reference']
+            vendor_metadata = vendor_response.to_json
+            Rails.logger.info "Vendor order created successfully: invoice_id=#{vendor_invoice_id}"
+          else
+            vendor_error = vendor_response['message'] || vendor_response['error'] || 'Vendor order failed'
+            Rails.logger.error "Vendor order creation failed: #{vendor_error}"
+          end
+
+        rescue => e
+          vendor_error = e.message
+          Rails.logger.error "Vendor order creation failed: #{e.message}"
+        end
+
+        # Update order based on vendor result
+        if vendor_error.present?
+          # Vendor failed - mark order as failed but keep the record
+          order.update!(error_message: vendor_error)
+          order.fail!  # Use AASM event to transition to failed state
+          Rails.logger.error "Order #{order.order_number} marked as failed: #{vendor_error}"
+
+          # Return the order with errors so user can see it was recorded
+          return {
+            order: order,
+            errors: [vendor_error]
+          }
+        else
+          # Vendor succeeded - update invoice_id first, then transition to processing
+          # The process! callback (purchase_game_credit) will skip since invoice_id is set
+          order.update!(
+            invoice_id: vendor_invoice_id,
+            metadata: vendor_metadata
+          )
+          order.process!  # Use AASM event to transition to processing state
+        end
 
         # Enqueue transaction verification after 10 seconds
         # This gives the blockchain RPC time to index the transaction
