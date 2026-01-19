@@ -102,11 +102,11 @@ module OrderService
 
   def check_order(order)
     return return_respond("invalid", "Please check only processing orders") unless order.processing?
-    return return_respond("invalid", "Couldn't find tracking number") unless order.tracking_number.present?
+    return return_respond("invalid", "Couldn't find invoice ID") unless order.invoice_id.present?
 
     begin
       # Call VendorService to check order status
-      response = VendorService.check_order_detail(order.order_number, order.tracking_number)
+      response = VendorService.check_order_detail(order.order_number, order.invoice_id)
 
       # Parse the response status
       status = response['status']&.downcase

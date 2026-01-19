@@ -317,14 +317,13 @@ module Mutations
             errors: [vendor_error]
           }
         else
-          # Vendor succeeded - update tracking_number and status directly
-          # Don't use order.process! as it triggers purchase_game_credit callback
-          # which would call vendor again (we already called vendor above)
+          # Vendor succeeded - update tracking_number first, then transition to processing
+          # The purchase_game_credit callback will skip because tracking_number is set
           order.update!(
             tracking_number: vendor_tracking_number,
-            metadata: vendor_metadata,
-            status: 'processing'
+            metadata: vendor_metadata
           )
+          order.process!  # Use AASM event to transition to processing state
         end
 
         # Enqueue transaction verification after 10 seconds

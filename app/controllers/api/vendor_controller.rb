@@ -32,7 +32,7 @@ module Api
       # Parse callback data
       reference = params[:reference]
       status = params[:status]&.downcase
-      tracking_number = params[:invoiceId]  # Vendor's invoiceId is our tracking_number
+      tracking_number = params[:invoiceId]  # Vendor's invoiceId saved as tracking_number
       trx_date = params[:trxDate]
       sn = params[:sn]
 
@@ -60,9 +60,10 @@ module Api
       begin
         case status
         when 'succeeded', 'success', 'completed'
-          # Update tracking_number and sn if provided
+          # Update tracking_number, invoice_id and sn if provided
           order.update!(
             tracking_number: tracking_number.presence || order.tracking_number,
+            invoice_id: tracking_number.presence || order.invoice_id,
             metadata: {
               sn: sn,
               trx_date: trx_date,
@@ -75,6 +76,7 @@ module Api
         when 'failed', 'error', 'cancelled'
           order.update!(
             tracking_number: tracking_number.presence || order.tracking_number,
+            invoice_id: tracking_number.presence || order.invoice_id,
             error_message: "Vendor order #{status}: #{params[:message] || params[:errorMessage] || 'Unknown error'}",
             metadata: {
               sn: sn,
@@ -86,9 +88,9 @@ module Api
           Rails.logger.info("Vendor callback: Order #{reference} marked as failed")
 
         when 'processing', 'pending'
-          # Update tracking_number if provided but keep processing
+          # Update tracking_number and invoice_id if provided but keep processing
           if tracking_number.present?
-            order.update!(tracking_number: tracking_number)
+            order.update!(tracking_number: tracking_number, invoice_id: tracking_number)
           end
           Rails.logger.info("Vendor callback: Order #{reference} still processing")
 

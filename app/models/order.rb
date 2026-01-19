@@ -25,8 +25,8 @@ class Order < ApplicationRecord
   scope :topup_product, -> { where(order_type: 'topup_product') }
   scope :pending, -> { where(status: 'pending') }
   scope :succeeded, -> { where(status: 'succeeded') }
-  scope :processing_with_tracking, -> { where(status: 'processing').where.not(tracking_number: nil) }
-  scope :needs_status_check, -> { processing_with_tracking.where('updated_at < ?', 5.minutes.ago) }
+  scope :processing_with_invoice, -> { where(status: 'processing').where.not(invoice_id: nil) }
+  scope :needs_status_check, -> { processing_with_invoice.where('updated_at < ?', 5.minutes.ago) }
 
   # AASM State Machine
   aasm column: 'status' do
@@ -73,14 +73,14 @@ class Order < ApplicationRecord
   # Check order status from vendor and update accordingly
   # @return [Boolean] true if status was updated, false otherwise
   def check_vendor_status
-    # Only check orders that are in processing state and have tracking_number
-    return false unless processing? && tracking_number.present? && order_number.present?
+    # Only check orders that are in processing state and have invoice_id
+    return false unless processing? && invoice_id.present? && order_number.present?
 
     begin
-      Rails.logger.info("Checking vendor status for order #{order_number} (tracking: #{tracking_number})")
+      Rails.logger.info("Checking vendor status for order #{order_number} (invoice_id: #{invoice_id})")
 
       # Call vendor API to check order status
-      response = VendorService.check_order_detail(order_number, tracking_number)
+      response = VendorService.check_order_detail(order_number, invoice_id)
 
       # Check if response is successful
       unless response.present? && response['message'] == 'Success'
