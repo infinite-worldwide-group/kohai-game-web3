@@ -32,6 +32,7 @@ class UpdateLatestDenomJob < ApplicationJob
     api_items.each do |item|
       code = item["id"].to_s
       prod = TopupProduct.find_or_initialize_by(code: code)
+      is_new_record = prod.new_record?
 
       # Set product fields from API data
       prod.title = item["name"] || item["title"] || "Product #{code}"
@@ -90,6 +91,9 @@ class UpdateLatestDenomJob < ApplicationJob
           Rails.logger.error "Failed to attach logo for product #{code}: #{e.message}"
         end
       end
+
+      # Sync product items from vendor (skip for new records - already called via after_create callback)
+      prod.update_product_items unless is_new_record
     end
   end
 end
