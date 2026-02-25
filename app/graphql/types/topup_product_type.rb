@@ -64,7 +64,9 @@ module Types
 
     def is_favorite
       return false unless context[:current_user]
-      context[:current_user].favorite?(object)
+      # Load all favorite IDs once per request instead of one EXISTS query per product
+      context[:user_favorite_ids] ||= context[:current_user].user_favorites.pluck(:topup_product_id).to_set
+      context[:user_favorite_ids].include?(object.id)
     end
   end
 end

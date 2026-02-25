@@ -40,7 +40,7 @@ module Types
     end
 
     def discount_percent
-      TierService.check_tier_status(object)[:discount_percent]
+      cached_tier_status[:discount_percent]
     end
 
     def kohai_balance
@@ -48,11 +48,11 @@ module Types
     end
 
     def tier_badge
-      TierService.check_tier_status(object)[:badge]
+      cached_tier_status[:badge]
     end
 
     def tier_style
-      TierService.check_tier_status(object)[:style]
+      cached_tier_status[:style]
     end
 
     def has_applied_referral_code
@@ -70,6 +70,12 @@ module Types
 
     def referral_applied_at
       object.referral_applied_at
+    end
+
+    private
+
+    def cached_tier_status
+      @cached_tier_status ||= TierService.check_tier_status(object)
     end
   end
 end
