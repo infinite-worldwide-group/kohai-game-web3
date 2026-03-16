@@ -38,7 +38,7 @@ module Mutations
         # Get topup product for validation
         topup_product = product_item.topup_product
 
-        # Validate and auto-verify game account if provided
+        # Find game account early (before order creation) so we can attach it to the order
         game_account = nil
         if game_account_id.present?
           game_account = current_user.game_accounts.find_by(id: game_account_id)
@@ -48,66 +48,6 @@ module Mutations
               order: nil,
               errors: ["Game account not found"]
             }
-          end
-
-          # Auto-verify game account if not already approved
-          unless game_account.approved?
-            begin
-              validation_response = VendorService.validate_game_account(
-                product_id: topup_product&.origin_id || topup_product&.code,
-                user_data: game_account.user_data || {}
-              )
-              # Check for maintenance error
-              if validation_response.is_a?(Hash) && (validation_response['statusCode'] == 422 || validation_response['error'] == 'Maintenance')
-                return {
-                  order: nil,
-                  errors: [validation_response['message'] || "This product is currently unavailable. Please try again later."]
-                }
-              end
-              if validation_response && validation_response["data"] && validation_response["data"]["ign"].present?
-                game_account.update!(approve: true, in_game_name: validation_response["data"]["ign"])
-              else
-                return {
-                  order: nil,
-                  errors: ["Game account verification failed. Please verify your game account details."]
-                }
-              end
-            rescue => e
-              Rails.logger.error "Game account validation failed: #{e.message}"
-              return {
-                order: nil,
-                errors: ["Game account verification failed. Please try again."]
-              }
-            end
-          end
-        elsif user_data.present?
-          # Validate game account with vendor when user_data is provided directly
-          if topup_product&.origin_id.present?
-            begin
-              validation_response = VendorService.validate_game_account(
-                product_id: topup_product.origin_id,
-                user_data: user_data
-              )
-              # Check for maintenance error
-              if validation_response.is_a?(Hash) && (validation_response['statusCode'] == 422 || validation_response['error'] == 'Maintenance')
-                return {
-                  order: nil,
-                  errors: [validation_response['message'] || "This product is currently unavailable. Please try again later."]
-                }
-              end
-              unless validation_response && validation_response["data"] && validation_response["data"]["ign"].present?
-                return {
-                  order: nil,
-                  errors: ["Game account verification failed. Please verify your game account details."]
-                }
-              end
-            rescue => e
-              Rails.logger.error "Game account validation failed: #{e.message}"
-              return {
-                order: nil,
-                errors: ["Game account verification failed. Please try again."]
-              }
-            end
           end
         end
 
@@ -243,6 +183,68 @@ module Mutations
               currency: order.currency
             }
           )
+        end
+
+        # Verify game account AFTER order is created so the order is always stored
+        # If verification fails, mark order as failed and return it (not nil)
+        if game_account && !game_account.approved?
+          begin
+            validation_response = VendorService.validate_game_account(
+              product_id: topup_product&.origin_id || topup_product&.code,
+              user_data: game_account.user_data || {}
+            )
+
+            if validation_response.is_a?(Hash) && (validation_response['statusCode'] == 422 || validation_response['error'] == 'Maintenance')
+              error_msg = validation_response['message'] || "This product is currently unavailable. Please try again later."
+              order.update!(error_message: error_msg)
+              order.fail!
+              return { order: order, errors: [error_msg] }
+            end
+
+            if validation_response && validation_response["data"] && validation_response["data"]["ign"].present?
+              game_account.update!(approve: true, in_game_name: validation_response["data"]["ign"])
+            else
+              error_msg = "Game account verification failed. Please verify your game account details."
+              order.update!(error_message: error_msg)
+              order.fail!
+              Rails.logger.error "Game account verification failed for order #{order.order_number}"
+              return { order: order, errors: [error_msg] }
+            end
+          rescue => e
+            Rails.logger.error "Game account validation failed: #{e.message}"
+            error_msg = "Game account verification failed. Please try again."
+            order.update!(error_message: error_msg)
+            order.fail!
+            return { order: order, errors: [error_msg] }
+          end
+        elsif user_data.present? && topup_product&.origin_id.present? && !game_account
+          begin
+            validation_response = VendorService.validate_game_account(
+              product_id: topup_product.origin_id,
+              user_data: user_data
+            )
+
+            if validation_response.is_a?(Hash) && (validation_response['statusCode'] == 422 || validation_response['error'] == 'Maintenance')
+              error_msg = validation_response['message'] || "This product is currently unavailable. Please try again later."
+              order.update!(error_message: error_msg)
+              order.fail!
+              return { order: order, errors: [error_msg] }
+            end
+
+            unless validation_response && validation_response["data"] && validation_response["data"]["ign"].present?
+              error_msg = "Game account verification failed. Please verify your game account details."
+              order.update!(error_message: error_msg)
+              order.fail!
+              Rails.logger.error "Game account verification failed for order #{order.order_number}"
+              return { order: order, errors: [error_msg] }
+            end
+          rescue => e
+            Rails.logger.error "Game account validation failed: #{e.message}"
+            error_msg = "Game account verification failed. Please try again."
+            order.update!(error_message: error_msg)
+            order.fail!
+            return { order: order, errors: [error_msg] }
+          end
         end
 
         # Now call vendor AFTER order is created
